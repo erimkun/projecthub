@@ -1,0 +1,172 @@
+.root {
+  min-height: 100svh;
+  background:
+    radial-gradient(1300px 820px at 14% -8%, color-mix(in oklch, var(--accent-help) 20%, transparent), transparent 70%),
+    radial-gradient(1200px 740px at 108% 110%, color-mix(in oklch, var(--accent-busy) 20%, transparent), transparent 72%),
+    linear-gradient(160deg, oklch(10% 0.02 252), oklch(14% 0.03 240));
+  color: var(--text-1);
+  overflow-x: hidden;
+}
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--bg-elevated) 74%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.2vw, 1.4rem);
+}
+
+.meta {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.hero {
+  min-height: calc(100svh - 56px);
+  position: relative;
+  overflow: hidden;
+}
+
+.atmosphere {
+  position: absolute;
+  inset: -10%;
+  filter: blur(34px);
+  pointer-events: none;
+}
+
+.atmosphere::before,
+.atmosphere::after {
+  content: '';
+  position: absolute;
+  width: 52vw;
+  height: 52vw;
+  border-radius: 999px;
+}
+
+.atmosphere::before {
+  left: calc(var(--mx, 0.5) * 26%);
+  top: calc(var(--my, 0.5) * 25%);
+  background: color-mix(in oklch, var(--accent-help) 28%, transparent);
+}
+
+.atmosphere::after {
+  right: calc((1 - var(--mx, 0.5)) * 24%);
+  bottom: calc((1 - var(--my, 0.5)) * 22%);
+  background: color-mix(in oklch, var(--accent-busy) 30%, transparent);
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--text-3) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--text-3) 14%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 45%, black 42%, transparent 88%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.cards {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100svh - 56px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
+  gap: clamp(12px, 2vw, 22px);
+  align-content: center;
+  padding: clamp(20px, 4vw, 52px);
+}
+
+.card {
+  min-height: 250px;
+  border-radius: 20px;
+  border: 1px solid var(--border-light);
+  background: color-mix(in oklch, var(--bg-elevated) 82%, transparent);
+  box-shadow: 0 16px 44px oklch(5% 0 0 / 0.34);
+  padding: 18px;
+  transform: perspective(960px)
+    rotateY(calc((var(--mx, 0.5) - 0.5) * 18deg))
+    rotateX(calc((0.5 - var(--my, 0.5)) * 12deg));
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.card:hover {
+  border-color: color-mix(in oklch, var(--accent) 46%, transparent);
+  box-shadow: 0 20px 52px oklch(5% 0 0 / 0.44);
+}
+
+.card h3 {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.8vw, 1.4rem);
+  margin-bottom: 10px;
+}
+
+.card p {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.62;
+}
+
+.foldSection {
+  min-height: 92svh;
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklch, var(--bg-surface) 90%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 24px 12px 40px;
+}
+
+.foldStack {
+  width: min(1080px, 94vw);
+  display: grid;
+  gap: 12px;
+}
+
+.foldCard {
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  min-height: 92px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: color-mix(in oklch, var(--bg-elevated) 84%, transparent);
+  transform-origin: top center;
+}
+
+.foldTitle {
+  font-family: var(--font-display);
+  font-size: clamp(0.98rem, 1.8vw, 1.3rem);
+}
+
+.foldMeta {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+@media (max-width: 920px) {
+  .cards {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 20px 14px;
+  }
+
+  .card {
+    min-height: 170px;
+  }
+
+  .foldSection {
+    min-height: auto;
+  }
+}

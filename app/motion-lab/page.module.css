@@ -1,0 +1,305 @@
+.labRoot {
+  min-height: 100svh;
+  background:
+    radial-gradient(1400px 720px at 10% -10%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 68%),
+    radial-gradient(1200px 720px at 110% 110%, color-mix(in oklch, var(--accent-busy) 20%, transparent), transparent 72%),
+    linear-gradient(160deg, oklch(10% 0.02 250), oklch(14% 0.03 240));
+  color: var(--text-1);
+  padding: clamp(20px, 3.5vw, 40px);
+}
+
+.labHeader {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  backdrop-filter: blur(10px);
+  background: color-mix(in oklch, var(--bg-elevated) 75%, transparent);
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.headerTitle {
+  font-size: clamp(1.05rem, 2.3vw, 1.5rem);
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.headerMeta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jumpBtn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--bg-surface) 80%, transparent);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.introBlock {
+  margin: 20px 0 26px;
+  display: grid;
+  gap: 10px;
+}
+
+.introKicker {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.introTitle {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 4rem);
+  line-height: 0.93;
+  letter-spacing: -0.04em;
+  max-width: 16ch;
+}
+
+.introCopy {
+  max-width: 64ch;
+  color: var(--text-2);
+  font-size: clamp(14px, 2vw, 17px);
+}
+
+.optionSection {
+  min-height: 96svh;
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  background: color-mix(in oklch, var(--bg-surface) 86%, transparent);
+}
+
+.optionHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.optionLabel {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.optionName {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 2.2vw, 1.8rem);
+}
+
+.optionHint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.optionStage {
+  min-height: calc(96svh - 76px);
+  position: relative;
+  overflow: hidden;
+}
+
+.optionOneStage {
+  perspective: 1200px;
+  background:
+    radial-gradient(circle at 30% 14%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 60%),
+    linear-gradient(180deg, oklch(10% 0.02 250), oklch(14% 0.03 245));
+}
+
+.tunnelWrap {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+}
+
+.tunnelLayer {
+  position: absolute;
+  width: min(72vw, 800px);
+  aspect-ratio: 1.8;
+  border: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
+  border-radius: 20px;
+  background: color-mix(in oklch, var(--bg-surface) 60%, transparent);
+  transform: translateZ(var(--z)) rotateX(18deg);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 15%, transparent);
+}
+
+.tunnelGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--text-3) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--text-3) 18%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.3;
+}
+
+.tunnelCore {
+  position: absolute;
+  width: min(34vw, 380px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in oklch, var(--accent) 72%, white), transparent 64%);
+  filter: blur(3px);
+  animation: pulseCore 3.5s ease-in-out infinite;
+}
+
+.optionTwoStage {
+  background:
+    radial-gradient(circle at 20% 20%, color-mix(in oklch, var(--accent-help) 20%, transparent), transparent 60%),
+    radial-gradient(circle at 90% 80%, color-mix(in oklch, var(--accent-busy) 22%, transparent), transparent 62%),
+    linear-gradient(180deg, oklch(11% 0.02 250), oklch(15% 0.03 245));
+}
+
+.focusCloud {
+  position: absolute;
+  inset: 0;
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.focusCloud::before,
+.focusCloud::after {
+  content: '';
+  position: absolute;
+  width: 44vw;
+  height: 44vw;
+  border-radius: 999px;
+}
+
+.focusCloud::before {
+  left: calc(var(--mx, 0.5) * 35%);
+  top: calc(var(--my, 0.5) * 30%);
+  background: color-mix(in oklch, var(--accent) 24%, transparent);
+}
+
+.focusCloud::after {
+  right: calc((1 - var(--mx, 0.5)) * 25%);
+  bottom: calc((1 - var(--my, 0.5)) * 20%);
+  background: color-mix(in oklch, var(--accent-busy) 26%, transparent);
+}
+
+.focusCards {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: clamp(12px, 2vw, 22px);
+  align-content: center;
+  padding: clamp(18px, 4vw, 48px);
+}
+
+.focusCard {
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  padding: 18px;
+  min-height: 220px;
+  background: color-mix(in oklch, var(--bg-elevated) 78%, transparent);
+  transform: perspective(900px) rotateY(calc((var(--mx, 0.5) - 0.5) * 16deg)) rotateX(calc((0.5 - var(--my, 0.5)) * 10deg));
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  box-shadow: 0 14px 40px oklch(5% 0 0 / 0.32);
+}
+
+.focusCard h4 {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  margin-bottom: 8px;
+}
+
+.focusCard p {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.optionThreeStage {
+  background:
+    radial-gradient(circle at 80% 14%, color-mix(in oklch, var(--accent) 18%, transparent), transparent 58%),
+    linear-gradient(180deg, oklch(9% 0.02 252), oklch(14% 0.03 244));
+  perspective: 1600px;
+}
+
+.foldStack {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+}
+
+.foldCard {
+  width: min(80vw, 920px);
+  min-height: 110px;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  background: color-mix(in oklch, var(--bg-elevated) 82%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  transform-origin: top center;
+}
+
+.foldTitle {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2vw, 1.5rem);
+}
+
+.foldMeta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+@keyframes pulseCore {
+  0% { transform: scale(0.95); opacity: 0.45; }
+  50% { transform: scale(1.12); opacity: 0.9; }
+  100% { transform: scale(0.95); opacity: 0.45; }
+}
+
+@media (max-width: 900px) {
+  .labHeader {
+    position: static;
+  }
+
+  .focusCards {
+    grid-template-columns: 1fr;
+  }
+
+  .focusCard {
+    min-height: 160px;
+  }
+
+  .foldCard {
+    width: calc(100% - 24px);
+    min-height: 88px;
+    padding: 14px 16px;
+  }
+}
