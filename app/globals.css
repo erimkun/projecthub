@@ -170,11 +170,47 @@ ul, ol { list-style: none; }
   }
 
   .topbar {
-    padding: 0 12px;
+    padding: 8px 12px 10px;
     padding-top: var(--sat);
-    height: calc(56px + var(--sat));
+    height: auto;
+    min-height: calc(56px + var(--sat));
     width: 100%;
     gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+  }
+
+  .topbar-brand {
+    order: 1;
+  }
+
+  .topbar-actions {
+    order: 2;
+    margin-left: auto;
+    gap: 6px;
+  }
+
+  .topbar-user {
+    padding-left: 6px !important;
+    border-left: none !important;
+    gap: 4px !important;
+  }
+
+  .topbar-view-toggle {
+    order: 3;
+    width: 100%;
+  }
+
+  .topbar-view-toggle .view-toggle-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .week-picker-popup {
+    width: min(260px, calc(100vw - 24px)) !important;
+    left: 0 !important;
+    right: auto !important;
   }
 
   .sidebar {

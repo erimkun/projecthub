@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import MagicInput from './MagicInput';
 import NotificationBell from './NotificationBell';
-import { RefreshCw, LogOut, User, Calendar, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { LogOut, User, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getWeekNumber, getWeekMonday } from '@/lib/parser';
 
 export default function Topbar() {
-  const { view, setView, triggerRollover, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear, setSidebarOpen } = useAppStore();
+  const { view, setView, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear } = useAppStore();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [showWeekPicker, setShowWeekPicker] = useState(false);
@@ -83,17 +83,8 @@ export default function Topbar() {
 
   return (
     <header className="topbar">
-      {/* Mobile Menu Toggle */}
-      <button
-        className="btn-icon show-mobile"
-        style={{ marginRight: -8 }}
-        onClick={() => setSidebarOpen(true)}
-      >
-        <Menu size={20} />
-      </button>
-
       {/* Logo + week indicator */}
-      <div ref={weekPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
+      <div ref={weekPickerRef} className="topbar-brand" style={{ position: 'relative', flexShrink: 0 }}>
         <button
           type="button"
           onClick={() => setShowWeekPicker((prev) => !prev)}
@@ -111,6 +102,7 @@ export default function Topbar() {
 
         {showWeekPicker && (
           <div
+            className="week-picker-popup"
             style={{
               position: 'absolute',
               top: 'calc(100% + 8px)',
@@ -168,7 +160,7 @@ export default function Topbar() {
       </div>
 
       {/* View Toggle */}
-      <div className="view-toggle" style={{ marginLeft: 0, flexShrink: 0 }}>
+      <div className="view-toggle topbar-view-toggle" style={{ marginLeft: 0, flexShrink: 0 }}>
         <button
           id="btn-personal-view"
           className={`view-toggle-btn${view === 'personal' ? ' active' : ''}`}
@@ -188,28 +180,24 @@ export default function Topbar() {
       </div>
 
       {/* Magic Input */}
-      <MagicInput />
+      <div className="hide-mobile" style={{ flex: 1, minWidth: 0 }}>
+        <MagicInput />
+      </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-        <button
-          id="btn-rollover"
-          className="btn btn-ghost btn-sm hide-mobile"
-          onClick={triggerRollover}
-          title="Manuel haftalık devir"
-        >
-          <RefreshCw size={13} />
-          Devir
-        </button>
+      <div className="topbar-actions flex items-center gap-2" style={{ flexShrink: 0 }}>
         <NotificationBell />
         {username && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8, borderLeft: '1px solid var(--border)' }}>
+          <div className="topbar-user" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8, borderLeft: '1px solid var(--border)' }}>
             <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-2)' }}>
               <User size={13} />
               {username}
             </div>
+            <span className="show-mobile" style={{ display: 'flex', alignItems: 'center', color: 'var(--text-2)' }} title="Profil">
+              <User size={15} />
+            </span>
             <button
-              className="btn-icon"
+              className="btn-icon hide-mobile"
               onClick={handleLogout}
               title="Çıkış Yap"
               id="btn-logout"

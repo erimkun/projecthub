@@ -18,7 +18,7 @@ function rand(min: number, max: number) {
 }
 
 function buildParticleText(
-  text: string,
+  text: string | string[],
   width: number,
   height: number,
   sampleStep: number,
@@ -34,8 +34,14 @@ function buildParticleText(
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `900 ${Math.floor(height * 0.2)}px Arial`;
-  ctx.fillText(text, width * 0.5, height * 0.46);
+  const lines = Array.isArray(text) ? text : [text];
+  const fontSize = Math.floor(height * (lines.length > 1 ? 0.16 : 0.2));
+  const lineHeight = fontSize * 1.08;
+  const startY = height * 0.46 - ((lines.length - 1) * lineHeight) / 2;
+  ctx.font = `900 ${fontSize}px Arial`;
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, width * 0.5, startY + idx * lineHeight);
+  });
 
   const image = ctx.getImageData(0, 0, width, height).data;
   const points: Array<{ x: number; y: number }> = [];
@@ -69,6 +75,25 @@ function MotionLabOneContent() {
   const downWheelCountRef = useRef(0);
   const lastWheelTimeRef = useRef(0);
   const mouseRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
+    if (!isMobile) return;
+
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
+    if (isStandalone) return;
+
+    const storageKey = 'ph_pwa_install_alert_seen_v1';
+    if (window.localStorage.getItem(storageKey)) return;
+
+    const timer = window.setTimeout(() => {
+      window.alert('Bu uygulamayi ana ekrana ekleyerek PWA gibi kullanabilirsin. Tarayici menusu > "Ana ekrana ekle" adimini kullan.');
+      window.localStorage.setItem(storageKey, '1');
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -110,11 +135,13 @@ function MotionLabOneContent() {
     const root = rootRef.current;
     if (!canvas || !stage || !root) return;
 
+    const isMobileViewport = window.matchMedia('(max-width: 900px)').matches;
+
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x05070d, 0.09);
 
-    const camera = new THREE.PerspectiveCamera(window.innerWidth < 900 ? 54 : 48, 1, 0.1, 1000);
-    camera.position.set(0, 0.95, window.innerWidth < 900 ? 6.2 : 4.8);
+    const camera = new THREE.PerspectiveCamera(isMobileViewport ? 54 : 48, 1, 0.1, 1000);
+    camera.position.set(0, 0.95, isMobileViewport ? 6.2 : 4.8);
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -144,11 +171,11 @@ function MotionLabOneContent() {
     scene.add(cloudGroup);
 
     const textPoints = buildParticleText(
-      'KENTAŞ TECH VE ARGE',
+      isMobileViewport ? ['KENTAŞ TECH', 'VE ARGE'] : 'KENTAŞ TECH VE ARGE',
       1800,
       520,
-      window.innerWidth < 900 ? 10 : 6,
-      window.innerWidth < 900 ? 0.0032 : 0.0036
+      isMobileViewport ? 10 : 6,
+      isMobileViewport ? 0.0032 : 0.0036
     );
 
     const textCount = textPoints.length;
@@ -182,7 +209,7 @@ function MotionLabOneContent() {
     textGeo.setAttribute('color', new THREE.BufferAttribute(textCol, 3));
 
     const textMat = new THREE.PointsMaterial({
-      size: window.innerWidth < 900 ? 0.03 : 0.022,
+      size: isMobileViewport ? 0.03 : 0.022,
       transparent: true,
       opacity: 0.95,
       vertexColors: true,
@@ -196,7 +223,7 @@ function MotionLabOneContent() {
     const halfW = 4.2;
     const halfH = 2.5;
     const roomDepth = 8.4;
-    const density = window.innerWidth < 900 ? 0.65 : 1;
+    const density = isMobileViewport ? 0.65 : 1;
     const m = (n: number) => Math.max(1, Math.floor(n * density));
 
     const positions: number[] = [];
@@ -756,12 +783,14 @@ function MotionLabOneContent() {
         delete root.dataset.sceneDone;
       }
 
-      if (!isAutoScrollingRef.current && progress > 0.985 && stageOpacity < 0.04) {
-        const targetTop = appSectionRef.current?.offsetTop ?? stage.offsetHeight;
-        isAutoScrollingRef.current = true;
-        root.scrollTo({ top: targetTop, behavior: 'smooth' });
-      } else if (progress < 0.9) {
-        isAutoScrollingRef.current = false;
+      if (!isMobileViewport) {
+        if (!isAutoScrollingRef.current && progress > 0.985 && stageOpacity < 0.04) {
+          const targetTop = appSectionRef.current?.offsetTop ?? stage.offsetHeight;
+          isAutoScrollingRef.current = true;
+          root.scrollTo({ top: targetTop, behavior: 'smooth' });
+        } else if (progress < 0.9) {
+          isAutoScrollingRef.current = false;
+        }
       }
 
       if (stickyViewportRef.current) {
@@ -807,6 +836,9 @@ function MotionLabOneContent() {
     const stage = stageRef.current;
     const appSection = appSectionRef.current;
     if (!root || !stage || !appSection) return;
+
+    const isMobileViewport = window.matchMedia('(max-width: 900px)').matches;
+    if (isMobileViewport) return;
 
     const triggerAutoScrollToApp = () => {
       if (isAutoScrollingRef.current) return;

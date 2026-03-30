@@ -97,7 +97,19 @@
 }
 
 @media (max-width: 900px) {
+  .root {
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+  }
+
   .stage {
     min-height: 112svh;
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
+  }
+
+  .appSection {
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
   }
 }
