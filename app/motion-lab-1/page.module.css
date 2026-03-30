@@ -85,6 +85,36 @@
   min-height: 100svh;
 }
 
+.installHint {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, var(--border));
+  background: color-mix(in oklch, var(--bg-elevated) 88%, black);
+  box-shadow: 0 10px 30px oklch(0% 0 0 / 0.45);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.installHintButton {
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-1);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .root[data-scene-done='true'] .stickyViewport {
   opacity: 0 !important;
   visibility: hidden;
@@ -97,6 +127,10 @@
 }
 
 @media (max-width: 900px) {
+  .installHint {
+    font-size: 11px;
+  }
+
   .root {
     scroll-snap-type: none;
     scroll-behavior: auto;

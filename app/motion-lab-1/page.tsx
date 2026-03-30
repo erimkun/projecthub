@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, Suspense } from 'react';
+import { useEffect, useRef, Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as THREE from 'three';
 import { useAppStore } from '@/lib/store';
@@ -65,6 +65,8 @@ function MotionLabOneContent() {
   const searchParams = useSearchParams();
   const isJustLoggedIn = searchParams.get('login') === '1';
   const { view, fetchAll, triggerAutoRollover, tasks, setCurrentMemberId } = useAppStore();
+  const [showInstallHint, setShowInstallHint] = useState(false);
+  const [installHintText, setInstallHintText] = useState('');
   const rootRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLElement>(null);
   const appSectionRef = useRef<HTMLElement>(null);
@@ -84,16 +86,34 @@ function MotionLabOneContent() {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
     if (isStandalone) return;
 
-    const storageKey = 'ph_pwa_install_alert_seen_v1';
-    if (window.localStorage.getItem(storageKey)) return;
+    const storageKey = 'ph_pwa_install_hint_seen_v2';
+    try {
+      if (window.localStorage.getItem(storageKey)) return;
+    } catch {
+      // Continue without persistence if storage is blocked.
+    }
 
-    const timer = window.setTimeout(() => {
-      window.alert('Bu uygulamayi ana ekrana ekleyerek PWA gibi kullanabilirsin. Tarayici menusu > "Ana ekrana ekle" adimini kullan.');
-      window.localStorage.setItem(storageKey, '1');
-    }, 900);
+    const ua = navigator.userAgent.toLowerCase();
+    const isIos = /iphone|ipad|ipod/.test(ua);
+    const isSafari = ua.includes('safari') && !/crios|fxios|edgios|opr\//.test(ua);
 
-    return () => window.clearTimeout(timer);
+    if (isIos && isSafari) {
+      setInstallHintText('Safari icin: Paylas menusu > Ana Ekrana Ekle adimini kullanarak uygulamayi kurabilirsin.');
+    } else {
+      setInstallHintText('Bu uygulamayi ana ekrana eklemek icin tarayici menusundeki Ana Ekrana Ekle secenegini kullanabilirsin.');
+    }
+
+    setShowInstallHint(true);
   }, []);
+
+  const dismissInstallHint = () => {
+    setShowInstallHint(false);
+    try {
+      window.localStorage.setItem('ph_pwa_install_hint_seen_v2', '1');
+    } catch {
+      // Ignore persistence errors.
+    }
+  };
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -920,6 +940,15 @@ function MotionLabOneContent() {
 
   return (
     <main ref={rootRef} className={styles.root} onMouseMove={handleMove} onMouseLeave={handleLeave}>
+      {showInstallHint && (
+        <div className={styles.installHint} role="status" aria-live="polite">
+          <span>{installHintText}</span>
+          <button type="button" className={styles.installHintButton} onClick={dismissInstallHint}>
+            Tamam
+          </button>
+        </div>
+      )}
+
       <section ref={stageRef} className={styles.stage}>
         <div ref={stickyViewportRef} className={styles.stickyViewport}>
           <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
