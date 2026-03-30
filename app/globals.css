@@ -185,6 +185,11 @@ ul, ol { list-style: none; }
     order: 1;
   }
 
+  .topbar-menu-toggle {
+    order: 0;
+    margin-right: 2px;
+  }
+
   .topbar-actions {
     order: 2;
     margin-left: auto;

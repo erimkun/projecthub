@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import MagicInput from './MagicInput';
 import NotificationBell from './NotificationBell';
-import { LogOut, User, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LogOut, User, Calendar, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { getWeekNumber, getWeekMonday } from '@/lib/parser';
 
 export default function Topbar() {
-  const { view, setView, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear } = useAppStore();
+  const { view, setView, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear, setSidebarOpen } = useAppStore();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [showWeekPicker, setShowWeekPicker] = useState(false);
@@ -83,6 +83,15 @@ export default function Topbar() {
 
   return (
     <header className="topbar">
+      <button
+        className="btn-icon show-mobile topbar-menu-toggle"
+        onClick={() => setSidebarOpen(true)}
+        title="Menüyü aç"
+        aria-label="Menüyü aç"
+      >
+        <Menu size={18} />
+      </button>
+
       {/* Logo + week indicator */}
       <div ref={weekPickerRef} className="topbar-brand" style={{ position: 'relative', flexShrink: 0 }}>
         <button

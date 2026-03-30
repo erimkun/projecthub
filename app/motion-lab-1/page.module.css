@@ -16,6 +16,10 @@
   height: 100svh;
 }
 
+.root[data-intro-locked='true'] {
+  overflow: hidden;
+}
+
 .stage {
   min-height: 160vh;
   position: relative;
@@ -137,13 +141,29 @@
   }
 
   .stage {
-    min-height: 112svh;
+    position: fixed;
+    inset: 0;
+    min-height: 100svh;
+    height: 100svh;
+    z-index: 30;
     scroll-snap-align: none;
     scroll-snap-stop: normal;
+    transition: opacity 360ms ease, visibility 360ms ease;
+  }
+
+  .root[data-scene-done='true'] .stage {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .stickyViewport {
+    height: 100svh;
   }
 
   .appSection {
     scroll-snap-align: none;
     scroll-snap-stop: normal;
+    min-height: 100svh;
   }
 }

@@ -156,6 +156,8 @@ function MotionLabOneContent() {
     if (!canvas || !stage || !root) return;
 
     const isMobileViewport = window.matchMedia('(max-width: 900px)').matches;
+    const introStartTime = performance.now();
+    const mobileIntroDurationMs = 2300;
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x05070d, 0.09);
@@ -609,10 +611,17 @@ function MotionLabOneContent() {
     let raf = 0;
     const animate = () => {
       const t = performance.now() * 0.001;
-      const stageRect = stage.getBoundingClientRect();
-      const travel = Math.max(1, stage.offsetHeight - window.innerHeight);
-      const scrolled = Math.min(Math.max(-stageRect.top, 0), travel);
-      const progress = scrolled / travel;
+      let progress = 0;
+
+      if (isMobileViewport) {
+        const elapsed = performance.now() - introStartTime;
+        progress = Math.min(elapsed / mobileIntroDurationMs, 1);
+      } else {
+        const stageRect = stage.getBoundingClientRect();
+        const travel = Math.max(1, stage.offsetHeight - window.innerHeight);
+        const scrolled = Math.min(Math.max(-stageRect.top, 0), travel);
+        progress = scrolled / travel;
+      }
 
       const zoomIn = Math.min(progress / 0.54, 1);
       const chaos = Math.min(Math.max((progress - 0.54) / 0.42, 0), 1);
@@ -801,6 +810,14 @@ function MotionLabOneContent() {
         root.dataset.sceneDone = 'true';
       } else {
         delete root.dataset.sceneDone;
+      }
+
+      if (isMobileViewport) {
+        if (sceneDone) {
+          delete root.dataset.introLocked;
+        } else {
+          root.dataset.introLocked = 'true';
+        }
       }
 
       if (!isMobileViewport) {
