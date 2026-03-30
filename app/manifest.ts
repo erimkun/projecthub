@@ -13,6 +13,16 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       {
         src: '/haklıadam.jpeg',
+        sizes: '192x192',
+        type: 'image/jpeg',
+      },
+      {
+        src: '/haklıadam.jpeg',
+        sizes: '512x512',
+        type: 'image/jpeg',
+      },
+      {
+        src: '/haklıadam.jpeg',
         sizes: '1300x1300',
         type: 'image/jpeg',
       },
