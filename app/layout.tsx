@@ -11,19 +11,17 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/haklıadam.jpeg',
-        sizes: '1300x1300',
+        url: '/logo.jpeg',
         type: 'image/jpeg',
       },
     ],
     apple: [
       {
-        url: '/haklıadam.jpeg',
-        sizes: '1300x1300',
+        url: '/logo.jpeg',
         type: 'image/jpeg',
       },
     ],
-    shortcut: '/haklıadam.jpeg',
+    shortcut: '/logo.jpeg',
   },
 };
 

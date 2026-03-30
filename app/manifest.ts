@@ -12,18 +12,18 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0c0d11',
     icons: [
       {
-        src: '/haklıadam.jpeg',
+        src: '/logo.jpeg',
         sizes: '192x192',
         type: 'image/jpeg',
       },
       {
-        src: '/haklıadam.jpeg',
+        src: '/logo.jpeg',
         sizes: '512x512',
         type: 'image/jpeg',
       },
       {
-        src: '/haklıadam.jpeg',
-        sizes: '1300x1300',
+        src: '/logo.jpeg',
+        sizes: 'any',
         type: 'image/jpeg',
       },
     ],
