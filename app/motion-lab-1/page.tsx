@@ -22,7 +22,8 @@ function buildParticleText(
   width: number,
   height: number,
   sampleStep: number,
-  scale = 0.0036
+  scale = 0.0036,
+  options?: { yOffset?: number; fontScale?: number }
 ) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -35,7 +36,8 @@ function buildParticleText(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const lines = Array.isArray(text) ? text : [text];
-  const fontSize = Math.floor(height * (lines.length > 1 ? 0.16 : 0.2));
+  const autoFontScale = lines.length > 1 ? 0.16 : 0.2;
+  const fontSize = Math.floor(height * (options?.fontScale ?? autoFontScale));
   const lineHeight = fontSize * 1.08;
   const startY = height * 0.46 - ((lines.length - 1) * lineHeight) / 2;
   ctx.font = `900 ${fontSize}px Arial`;
@@ -52,7 +54,7 @@ function buildParticleText(
       const alpha = image[i + 3];
       if (alpha < 120) continue;
       const px = (x - width * 0.5) * scale;
-      const py = (height * 0.5 - y) * scale + 1.55;
+      const py = (height * 0.5 - y) * scale + (options?.yOffset ?? 1.55);
       points.push({ x: px, y: py });
     }
   }
@@ -65,6 +67,9 @@ function MotionLabOneContent() {
   const searchParams = useSearchParams();
   const isJustLoggedIn = searchParams.get('login') === '1';
   const { view, fetchAll, triggerAutoRollover, tasks, setCurrentMemberId } = useAppStore();
+  const [isFontsReady, setIsFontsReady] = useState(false);
+  const [isLoaderCycleDone, setIsLoaderCycleDone] = useState(false);
+  const isBootReady = isFontsReady && isLoaderCycleDone;
   const [showInstallHint, setShowInstallHint] = useState(false);
   const [installHintText, setInstallHintText] = useState('');
   const rootRef = useRef<HTMLElement>(null);
@@ -72,11 +77,203 @@ function MotionLabOneContent() {
   const appSectionRef = useRef<HTMLElement>(null);
   const stickyViewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const trailCanvasRef = useRef<HTMLCanvasElement>(null);
+  const loaderCanvasRef = useRef<HTMLCanvasElement>(null);
   const isAutoScrollingRef = useRef(false);
   const hasAutoNavigatedRef = useRef(false);
   const downWheelCountRef = useRef(0);
   const lastWheelTimeRef = useRef(0);
-  const mouseRef = useRef({ x: 0, y: 0 });
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const markFontsReady = () => {
+      if (!cancelled) setIsFontsReady(true);
+    };
+
+    const minDelay = new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 520);
+    });
+
+    const fontReadyPromise = document.fonts?.ready
+      ? document.fonts.ready.then(() => undefined)
+      : Promise.resolve();
+
+    Promise.all([minDelay, fontReadyPromise]).then(markFontsReady);
+
+    const fallbackTimeout = window.setTimeout(markFontsReady, 3200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallbackTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = loaderCanvasRef.current;
+    if (!canvas || isBootReady) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const steps = [8, 8, 7, 6, 5, 4, 3, 2, 1];
+    const dirs: Array<[number, number]> = [
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [-1, 0],
+      [0, 1],
+      [1, 0],
+      [0, -1],
+      [-1, 0],
+      [0, 1],
+    ];
+
+    const path: Array<{ x: number; y: number }> = [{ x: 0, y: 0 }];
+    let px = 0;
+    let py = 0;
+    for (let s = 0; s < steps.length; s++) {
+      const [dx, dy] = dirs[s];
+      for (let i = 0; i < steps[s]; i++) {
+        px += dx;
+        py += dy;
+        path.push({ x: px, y: py });
+      }
+    }
+
+    let minX = 0;
+    let maxX = 0;
+    let minY = 0;
+    let maxY = 0;
+    for (const point of path) {
+      if (point.x < minX) minX = point.x;
+      if (point.x > maxX) maxX = point.x;
+      if (point.y < minY) minY = point.y;
+      if (point.y > maxY) maxY = point.y;
+    }
+
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    };
+
+    resize();
+
+    let raf = 0;
+    let head = 0;
+    let direction = 1;
+    let last = performance.now();
+    let completedHalfCycle = false;
+
+    const draw = (now: number) => {
+      const dt = Math.min(0.045, (now - last) / 1000);
+      last = now;
+
+      const speed = 8.5;
+      head += direction * speed * dt;
+      if (direction > 0 && head >= path.length - 1) {
+        head = path.length - 1;
+        if (!completedHalfCycle) {
+          completedHalfCycle = true;
+          setIsLoaderCycleDone(true);
+        }
+        direction = -1;
+      } else if (direction < 0 && head <= 0) {
+        head = 0;
+        direction = 1;
+      }
+
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+
+      const cell = Math.max(5, Math.min(8, Math.round(Math.min(w, h) * 0.0055)));
+      const gap = Math.max(1, Math.round(cell * 0.22));
+      const step = cell + gap;
+      const pathWidth = (maxX - minX + 1) * step;
+      const pathHeight = (maxY - minY + 1) * step;
+      const originX = Math.round((w - pathWidth) / 2 - minX * step + step * 0.5);
+      const originY = Math.round((h - pathHeight) / 2 - minY * step + step * 0.5);
+
+      const headCell = direction > 0 ? Math.floor(head) : Math.ceil(head);
+      for (let i = 0; i < path.length; i++) {
+        const active = direction > 0 ? i <= headCell : i >= headCell;
+        if (!active) continue;
+
+        const p = path[i];
+        const x = originX + p.x * step;
+        const y = originY + p.y * step;
+        const dist = Math.abs(i - head);
+        const alpha = Math.max(0.26, 1 - dist * 0.16);
+        const pulse = 1 + Math.max(0, 0.14 - dist * 0.03);
+        const size = cell * pulse;
+        const offset = (size - cell) / 2;
+
+        const flow = performance.now() * 0.055 + i * 18;
+        const edgeHues = [flow % 360, (flow + 90) % 360, (flow + 180) % 360, (flow + 270) % 360];
+
+        ctx.fillStyle = `hsla(222, 42%, 12%, ${Math.min(0.82, alpha * 0.72).toFixed(3)})`;
+        ctx.fillRect(x - offset, y - offset, size, size);
+
+        const left = x - offset;
+        const top = y - offset;
+        const right = left + size;
+        const bottom = top + size;
+
+        ctx.lineWidth = Math.max(1.2, cell * 0.1);
+        ctx.shadowBlur = 12;
+        ctx.lineCap = 'round';
+
+        ctx.shadowColor = `hsla(${edgeHues[0].toFixed(1)}, 100%, 72%, ${Math.min(0.98, alpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[0].toFixed(1)}, 100%, 72%, ${Math.min(1, alpha + 0.06).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(left, top);
+        ctx.lineTo(right, top);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[1].toFixed(1)}, 100%, 72%, ${Math.min(0.98, alpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[1].toFixed(1)}, 100%, 72%, ${Math.min(1, alpha + 0.06).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(right, top);
+        ctx.lineTo(right, bottom);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[2].toFixed(1)}, 100%, 72%, ${Math.min(0.98, alpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[2].toFixed(1)}, 100%, 72%, ${Math.min(1, alpha + 0.06).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(right, bottom);
+        ctx.lineTo(left, bottom);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[3].toFixed(1)}, 100%, 72%, ${Math.min(0.98, alpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[3].toFixed(1)}, 100%, 72%, ${Math.min(1, alpha + 0.06).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(left, bottom);
+        ctx.lineTo(left, top);
+        ctx.stroke();
+      }
+
+      raf = requestAnimationFrame(draw);
+    };
+
+    raf = requestAnimationFrame(draw);
+    window.addEventListener('resize', resize);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, [isBootReady]);
 
   useEffect(() => {
     const isMobile = window.matchMedia('(max-width: 900px)').matches;
@@ -104,6 +301,187 @@ function MotionLabOneContent() {
     }
 
     setShowInstallHint(true);
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const trailCanvas = trailCanvasRef.current;
+    if (!root || !trailCanvas) return;
+
+    const ctx = trailCanvas.getContext('2d');
+    if (!ctx) return;
+
+    type TrailCell = {
+      x: number;
+      y: number;
+      size: number;
+      life: number;
+      maxLife: number;
+      key: string;
+      flowSeed: number;
+    };
+
+    let raf = 0;
+    const cells: TrailCell[] = [];
+    const recentCells = new Map<string, number>();
+    let hasLast = false;
+    let lastX = 0;
+    let lastY = 0;
+    const cellSize = 11;
+    const stripRadius = 0;
+    const maxActiveCells = 220;
+
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = root.getBoundingClientRect();
+      trailCanvas.width = Math.floor(rect.width * dpr);
+      trailCanvas.height = Math.floor(rect.height * dpr);
+      trailCanvas.style.width = `${Math.floor(rect.width)}px`;
+      trailCanvas.style.height = `${Math.floor(rect.height)}px`;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    };
+
+    const snapToGrid = (value: number) => Math.round(value / cellSize) * cellSize;
+
+    const spawnStrip = (x: number, y: number, dx: number, dy: number) => {
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const now = performance.now();
+
+      for (let offset = -stripRadius; offset <= stripRadius; offset++) {
+        const gx = snapToGrid(x + nx * offset * cellSize);
+        const gy = snapToGrid(y + ny * offset * cellSize);
+        const key = `${gx}:${gy}`;
+        const lastSeen = recentCells.get(key) ?? -1e6;
+        if (now - lastSeen < 72) continue;
+        if (cells.length >= maxActiveCells) continue;
+
+        recentCells.set(key, now);
+        cells.push({
+          x: gx,
+          y: gy,
+          size: cellSize * 0.9,
+          life: 0,
+          maxLife: 20,
+          key,
+          flowSeed: Math.random() * 360,
+        });
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const rect = root.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      if (hasLast) {
+        const dx = x - lastX;
+        const dy = y - lastY;
+        const dist = Math.hypot(dx, dy);
+        const steps = Math.max(1, Math.min(8, Math.floor(dist / (cellSize * 0.9))));
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const sx = lastX + dx * t;
+          const sy = lastY + dy * t;
+          spawnStrip(sx, sy, dx, dy);
+        }
+      } else {
+        spawnStrip(x, y, 1, 0);
+      }
+
+      hasLast = true;
+      lastX = x;
+      lastY = y;
+    };
+
+    const onPointerLeave = () => {
+      hasLast = false;
+    };
+
+    const draw = () => {
+      const rect = root.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      for (let i = cells.length - 1; i >= 0; i--) {
+        const cell = cells[i];
+        cell.life += 1;
+
+        const p = cell.life / cell.maxLife;
+        if (p >= 1) {
+          cells.splice(i, 1);
+          const lastSeen = recentCells.get(cell.key);
+          if (lastSeen && performance.now() - lastSeen > 90) {
+            recentCells.delete(cell.key);
+          }
+          continue;
+        }
+
+        const fade = p < 0.72 ? 1 : 1 - (p - 0.72) / 0.28;
+        const edgeAlpha = Math.max(0, 0.85 * fade);
+        const fillAlpha = Math.max(0, 0.34 * fade);
+        const half = cell.size / 2;
+        const flow = performance.now() * 0.055 + cell.flowSeed + p * 120;
+        const edgeHues = [flow % 360, (flow + 90) % 360, (flow + 180) % 360, (flow + 270) % 360];
+
+        ctx.save();
+        ctx.translate(cell.x, cell.y);
+
+        ctx.fillStyle = `hsla(222, 40%, 11%, ${fillAlpha.toFixed(3)})`;
+        ctx.fillRect(-half, -half, cell.size, cell.size);
+
+        ctx.lineWidth = 1.6;
+        ctx.shadowBlur = 8;
+        ctx.lineCap = 'round';
+
+        ctx.shadowColor = `hsla(${edgeHues[0].toFixed(1)}, 100%, 68%, ${Math.min(0.9, edgeAlpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[0].toFixed(1)}, 100%, 68%, ${edgeAlpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(-half, -half);
+        ctx.lineTo(half, -half);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[1].toFixed(1)}, 100%, 68%, ${Math.min(0.9, edgeAlpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[1].toFixed(1)}, 100%, 68%, ${edgeAlpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(half, -half);
+        ctx.lineTo(half, half);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[2].toFixed(1)}, 100%, 68%, ${Math.min(0.9, edgeAlpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[2].toFixed(1)}, 100%, 68%, ${edgeAlpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(half, half);
+        ctx.lineTo(-half, half);
+        ctx.stroke();
+
+        ctx.shadowColor = `hsla(${edgeHues[3].toFixed(1)}, 100%, 68%, ${Math.min(0.9, edgeAlpha).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${edgeHues[3].toFixed(1)}, 100%, 68%, ${edgeAlpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(-half, half);
+        ctx.lineTo(-half, -half);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      raf = requestAnimationFrame(draw);
+    };
+
+    resize();
+    draw();
+
+    root.addEventListener('pointermove', onPointerMove, { passive: true });
+    root.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    window.addEventListener('resize', resize);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      root.removeEventListener('pointermove', onPointerMove);
+      root.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('resize', resize);
+    };
   }, []);
 
   const dismissInstallHint = () => {
@@ -150,6 +528,8 @@ function MotionLabOneContent() {
   }, [fetchAll, router, setCurrentMemberId, triggerAutoRollover, isJustLoggedIn]);
 
   useEffect(() => {
+    if (!isBootReady) return;
+
     const canvas = canvasRef.current;
     const stage = stageRef.current;
     const root = rootRef.current;
@@ -157,7 +537,7 @@ function MotionLabOneContent() {
 
     const isMobileViewport = window.matchMedia('(max-width: 900px)').matches;
     const introStartTime = performance.now();
-    const introDurationMs = isMobileViewport ? 2300 : 3000;
+    const introDurationMs = isMobileViewport ? 3600 : 6800;
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x05070d, 0.09);
@@ -192,55 +572,7 @@ function MotionLabOneContent() {
     const cloudGroup = new THREE.Group();
     scene.add(cloudGroup);
 
-    const textPoints = buildParticleText(
-      isMobileViewport ? ['KENTAŞ TECH', 'VE ARGE'] : 'KENTAŞ TECH VE ARGE',
-      1800,
-      520,
-      isMobileViewport ? 10 : 6,
-      isMobileViewport ? 0.0032 : 0.0036
-    );
-
-    const textCount = textPoints.length;
-    const textPos = new Float32Array(textCount * 3);
-    const textBase = new Float32Array(textCount * 3);
-    const textCol = new Float32Array(textCount * 3);
-    const textVel = new Float32Array(textCount * 3);
-
-    for (let i = 0; i < textCount; i++) {
-      const idx = i * 3;
-      const baseX = textPoints[i].x;
-      const baseY = textPoints[i].y;
-      const baseZ = -1.55 + rand(-0.05, 0.05);
-
-      textBase[idx] = baseX;
-      textBase[idx + 1] = baseY;
-      textBase[idx + 2] = baseZ;
-
-      textPos[idx] = baseX + rand(-0.18, 0.18);
-      textPos[idx + 1] = baseY + rand(-0.18, 0.18);
-      textPos[idx + 2] = baseZ + rand(-0.08, 0.08);
-
-      const c = new THREE.Color().setHSL(0.56 + rand(-0.05, 0.05), 0.9, 0.72 + rand(-0.06, 0.04));
-      textCol[idx] = c.r;
-      textCol[idx + 1] = c.g;
-      textCol[idx + 2] = c.b;
-    }
-
-    const textGeo = new THREE.BufferGeometry();
-    textGeo.setAttribute('position', new THREE.BufferAttribute(textPos, 3));
-    textGeo.setAttribute('color', new THREE.BufferAttribute(textCol, 3));
-
-    const textMat = new THREE.PointsMaterial({
-      size: isMobileViewport ? 0.03 : 0.022,
-      transparent: true,
-      opacity: 0.95,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-
-    const textCloud = new THREE.Points(textGeo, textMat);
-    scene.add(textCloud);
+    const cityCenterZ = -1.9;
 
     const halfW = 4.2;
     const halfH = 2.5;
@@ -269,148 +601,109 @@ function MotionLabOneContent() {
       blastDirs.push(v.x * blastPower, v.y * blastPower, v.z * blastPower);
     };
 
-    const addDesk = (cx: number, cz: number, w: number, d: number, topY: number, color: THREE.Color) => {
-      for (let i = 0; i < m(1900); i++) {
-        pushPoint(rand(cx - w / 2, cx + w / 2), topY + rand(-0.025, 0.025), rand(cz - d / 2, cz + d / 2), color, rand(2.6, 8.2), rand(0.9, 2.1));
-      }
+    const baseY = -1.45;
 
-      const legOffsets = [
-        [-w / 2 + 0.08, -d / 2 + 0.08],
-        [w / 2 - 0.08, -d / 2 + 0.08],
-        [-w / 2 + 0.08, d / 2 - 0.08],
-        [w / 2 - 0.08, d / 2 - 0.08],
-      ];
-      for (const [ox, oz] of legOffsets) {
-        for (let i = 0; i < m(220); i++) {
-          pushPoint(cx + ox + rand(-0.015, 0.015), rand(-1.45, topY - 0.03), cz + oz + rand(-0.015, 0.015), color, rand(2.2, 6), rand(0.7, 1.6));
-        }
-      }
-    };
-
-    const addMonitor = (cx: number, cy: number, cz: number, w: number, h: number, color: THREE.Color) => {
-      for (let i = 0; i < m(1400); i++) {
-        const edge = Math.random();
-        let x = rand(cx - w / 2, cx + w / 2);
-        let y = rand(cy - h / 2, cy + h / 2);
-        if (edge < 0.25) x = cx - w / 2 + rand(-0.01, 0.01);
-        else if (edge < 0.5) x = cx + w / 2 + rand(-0.01, 0.01);
-        else if (edge < 0.75) y = cy - h / 2 + rand(-0.01, 0.01);
-        else y = cy + h / 2 + rand(-0.01, 0.01);
-        pushPoint(x, y, cz + rand(-0.02, 0.02), color, rand(2.5, 7.8), rand(1.1, 2.4));
-      }
+    const addCityTower = (cx: number, cz: number, width: number, depth: number, height: number, hue: number) => {
+      const baseColor = new THREE.Color().setHSL(hue, 0.82, 0.66);
+      const edgeColor = new THREE.Color().setHSL(hue + 0.05, 0.9, 0.78);
+      const yTop = baseY + height;
 
       for (let i = 0; i < m(950); i++) {
-        const screenColor = new THREE.Color().setHSL(0.56 + rand(-0.04, 0.05), 0.76, 0.62 + rand(-0.08, 0.08));
-        pushPoint(rand(cx - w * 0.42, cx + w * 0.42), rand(cy - h * 0.4, cy + h * 0.4), cz + rand(-0.012, 0.012), screenColor, rand(2.4, 6.8), rand(1.2, 2.7));
+        const x = rand(cx - width / 2, cx + width / 2);
+        const z = rand(cz - depth / 2, cz + depth / 2);
+        pushPoint(x, baseY + rand(-0.02, 0.02), z, baseColor, rand(2.8, 7.2), rand(1.1, 2.2));
       }
 
-      for (let i = 0; i < m(220); i++) {
-        pushPoint(cx + rand(-0.04, 0.04), rand(cy - h * 0.7, cy - h * 0.5), cz + rand(-0.01, 0.01), color, rand(2.2, 5.8), rand(0.8, 1.8));
+      for (let i = 0; i < m(1300); i++) {
+        const side = Math.random();
+        let x = cx;
+        let z = cz;
+        if (side < 0.25) {
+          x = cx - width / 2 + rand(-0.01, 0.01);
+          z = rand(cz - depth / 2, cz + depth / 2);
+        } else if (side < 0.5) {
+          x = cx + width / 2 + rand(-0.01, 0.01);
+          z = rand(cz - depth / 2, cz + depth / 2);
+        } else if (side < 0.75) {
+          x = rand(cx - width / 2, cx + width / 2);
+          z = cz - depth / 2 + rand(-0.01, 0.01);
+        } else {
+          x = rand(cx - width / 2, cx + width / 2);
+          z = cz + depth / 2 + rand(-0.01, 0.01);
+        }
+
+        const y = rand(baseY + 0.04, yTop);
+        const isWindow = Math.random() > 0.45;
+        const color = isWindow ? edgeColor : baseColor;
+        pushPoint(x, y, z, color, rand(2.6, 7.6), rand(1.2, 2.8));
+      }
+
+      for (let i = 0; i < m(260); i++) {
+        pushPoint(
+          cx + rand(-width * 0.08, width * 0.08),
+          yTop + rand(0, 0.55),
+          cz + rand(-depth * 0.08, depth * 0.08),
+          edgeColor,
+          rand(2.6, 8),
+          rand(1.4, 3)
+        );
       }
     };
 
-    const addLinePanel = (x0: number, y0: number, z0: number, w: number, h: number) => {
-      const panelBase = new THREE.Color(0x6f83a7);
-      for (let i = 0; i < m(1100); i++) {
-        pushPoint(rand(x0 - w / 2, x0 + w / 2), rand(y0 - h / 2, y0 + h / 2), z0 + rand(-0.02, 0.02), panelBase, rand(2.1, 6.2), rand(0.8, 1.8));
-      }
-
-      const lineColor = new THREE.Color(0xc2d7ff);
-      const rows = 7;
-      const cols = 5;
-      for (let r = 0; r <= rows; r++) {
-        const y = y0 - h / 2 + (h * r) / rows;
-        for (let i = 0; i < m(150); i++) {
-          pushPoint(rand(x0 - w / 2, x0 + w / 2), y + rand(-0.008, 0.008), z0 + rand(-0.012, 0.012), lineColor, rand(2.1, 5.8), rand(1, 2));
-        }
-      }
-      for (let c = 0; c <= cols; c++) {
-        const x = x0 - w / 2 + (w * c) / cols;
-        for (let i = 0; i < m(130); i++) {
-          pushPoint(x + rand(-0.008, 0.008), rand(y0 - h / 2, y0 + h / 2), z0 + rand(-0.012, 0.012), lineColor, rand(2.1, 5.6), rand(1, 2));
-        }
-      }
-    };
-
-    const addPieChart = (cx: number, cy: number, z: number, radius: number) => {
-      const segs = [0.2, 0.16, 0.23, 0.11, 0.14, 0.16];
-      let acc = -Math.PI * 0.5;
-      segs.forEach((ratio, idx) => {
-        const start = acc;
-        const end = acc + Math.PI * 2 * ratio;
-        acc = end;
-        const c = new THREE.Color().setHSL(0.52 + idx * 0.08, 0.82, 0.66);
-
-        for (let i = 0; i < m(420); i++) {
-          const a = rand(start, end);
-          const rr = rand(radius * 0.08, radius);
-          const x = cx + Math.cos(a) * rr;
-          const y = cy + Math.sin(a) * rr;
-          pushPoint(x, y, z + rand(-0.012, 0.012), c, rand(2.2, 7), rand(1, 2.2));
-        }
-      });
-
-      const ring = new THREE.Color(0xe2efff);
-      for (let i = 0; i < m(500); i++) {
+    const addNeonRing = (radius: number, y: number, hue: number, thickness = 0.06) => {
+      const ringColor = new THREE.Color().setHSL(hue, 0.9, 0.72);
+      for (let i = 0; i < m(2100); i++) {
         const a = rand(0, Math.PI * 2);
-        const rr = radius + rand(-0.012, 0.012);
-        pushPoint(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, z + rand(-0.01, 0.01), ring, rand(2, 5.4), rand(1, 2.2));
+        const rr = radius + rand(-thickness, thickness);
+        const x = Math.cos(a) * rr;
+        const z = cityCenterZ + Math.sin(a) * rr;
+        pushPoint(x, y + rand(-0.01, 0.01), z, ringColor, rand(2.4, 6.8), rand(0.9, 2));
       }
     };
 
-    const floorColor = new THREE.Color(0x6f7d92);
-    for (let i = 0; i < m(3600); i++) {
-      pushPoint(rand(-halfW, halfW), -halfH + rand(-0.03, 0.03), rand(-roomDepth, roomDepth), floorColor, rand(3, 8), rand(0.5, 1.3));
+    const platformColor = new THREE.Color(0x80a2df);
+    for (let i = 0; i < m(4200); i++) {
+      const a = rand(0, Math.PI * 2);
+      const rr = rand(0.3, 3.45);
+      const x = Math.cos(a) * rr;
+      const z = cityCenterZ + Math.sin(a) * rr;
+      pushPoint(x, baseY + rand(-0.02, 0.02), z, platformColor, rand(2.8, 7.2), rand(0.8, 1.8));
     }
 
-    const ceilingColor = new THREE.Color(0x5a667e);
-    for (let i = 0; i < m(2300); i++) {
-      pushPoint(rand(-halfW, halfW), halfH + rand(-0.03, 0.03), rand(-roomDepth, roomDepth), ceilingColor, rand(2.2, 6.8), rand(0.5, 1.1));
+    const towerCount = isMobileViewport ? 34 : 52;
+    const towerHuePalette = [0.52, 0.56, 0.6, 0.66, 0.72, 0.78];
+    for (let i = 0; i < towerCount; i++) {
+      const a = rand(0, Math.PI * 2);
+      const rr = rand(0.12, 2.05);
+      const x = Math.cos(a) * rr;
+      const z = cityCenterZ + Math.sin(a) * rr;
+      const width = rand(0.14, 0.34);
+      const depth = rand(0.14, 0.34);
+      const height = rand(0.55, 2.25) * (1.1 - rr / 4.2);
+      const hueBase = towerHuePalette[Math.floor(Math.random() * towerHuePalette.length)];
+      const hue = hueBase + rand(-0.025, 0.025);
+      addCityTower(x, z, width, depth, height, hue);
     }
 
-    const wallColorA = new THREE.Color(0x61718f);
-    const wallColorB = new THREE.Color(0x53627f);
-    for (let i = 0; i < m(2300); i++) {
-      pushPoint(-halfW + rand(-0.03, 0.03), rand(-halfH, halfH), rand(-roomDepth, roomDepth), wallColorA, rand(2.2, 7.4), rand(0.6, 1.4));
-      pushPoint(halfW + rand(-0.03, 0.03), rand(-halfH, halfH), rand(-roomDepth, roomDepth), wallColorB, rand(2.2, 7.4), rand(0.6, 1.4));
-    }
+    addCityTower(0, cityCenterZ, 0.3, 0.3, 3.35, 0.58);
+    addCityTower(0.3, cityCenterZ - 0.2, 0.25, 0.25, 2.5, 0.72);
+    addCityTower(-0.28, cityCenterZ + 0.2, 0.24, 0.24, 2.35, 0.52);
 
-    const backColor = new THREE.Color(0x4a5873);
+    addNeonRing(1.55, baseY + 0.04, 0.55, 0.05);
+    addNeonRing(2.15, baseY + 0.07, 0.76, 0.06);
+    addNeonRing(2.7, baseY + 0.1, 0.59, 0.08);
+
+    const ambientHaze = new THREE.Color(0xa7c4ff);
     for (let i = 0; i < m(2200); i++) {
-      pushPoint(rand(-halfW, halfW), rand(-halfH, halfH), -roomDepth + rand(-0.03, 0.03), backColor, rand(2.4, 7), rand(0.7, 1.5));
+      pushPoint(
+        rand(-3.8, 3.8),
+        rand(-0.25, 2.35),
+        cityCenterZ + rand(-3.8, 3.8),
+        ambientHaze,
+        rand(2.2, 6),
+        rand(0.7, 1.8)
+      );
     }
-
-    const frontColor = new THREE.Color(0x7a8ca8);
-    for (let i = 0; i < m(1300); i++) {
-      pushPoint(rand(-halfW, halfW), rand(-halfH, halfH), roomDepth + rand(-0.03, 0.03), frontColor, rand(2.4, 6.4), rand(0.6, 1.2));
-    }
-
-    const deskColor = new THREE.Color(0xa5b4cc);
-    addDesk(1.8, -0.9, 2.1, 1.1, -0.65, deskColor);
-    addDesk(-1.6, -1.4, 1.9, 1.05, -0.7, deskColor);
-    addDesk(0.15, -3.1, 2.3, 1.15, -0.68, deskColor);
-
-    const monitorFrame = new THREE.Color(0xdde7f8);
-    addMonitor(1.52, 0.08, -0.72, 0.9, 0.56, monitorFrame);
-    addMonitor(-1.86, 0.03, -1.2, 0.82, 0.5, monitorFrame);
-    addMonitor(0.0, 0.02, -2.9, 1.1, 0.62, monitorFrame);
-
-    const humanSilhouette = new THREE.Color(0xd4e5ff);
-    for (let i = 0; i < m(1100); i++) {
-      const bodyY = rand(-1.15, 1.05);
-      const bodyX = rand(-0.35, 0.35);
-      const bodyZ = rand(-1.6, -0.6);
-      pushPoint(bodyX, bodyY, bodyZ, humanSilhouette, rand(2.6, 8.8), rand(1.1, 2.6));
-    }
-
-    const lampColor = new THREE.Color(0xffe8c8);
-    for (let i = 0; i < m(500); i++) {
-      pushPoint(rand(-2.8, -1.5), rand(0.4, 1.6), rand(-2.4, -0.8), lampColor, rand(3.2, 9), rand(1.4, 2.8));
-    }
-
-    addPieChart(-2.45, 0.72, -roomDepth + 0.08, 0.92);
-    addLinePanel(2.28, 0.8, -roomDepth + 0.08, 2.0, 1.2);
-    addLinePanel(2.5, -0.65, -roomDepth + 0.08, 1.55, 0.74);
 
     const totalPoints = positions.length / 3;
     const pos = new Float32Array(positions);
@@ -489,8 +782,8 @@ function MotionLabOneContent() {
     const stars = new THREE.Points(starsGeo, starsMat);
     scene.add(stars);
 
-    const swarmCount = 12;
-    const pointsPerSwarm = m(320);
+    const swarmCount = isMobileViewport ? 3 : 5;
+    const pointsPerSwarm = m(140);
     const swarmPoints = swarmCount * pointsPerSwarm;
     const swarmSeeds = new Float32Array(swarmCount);
     const swarmAmp = new Float32Array(swarmCount);
@@ -504,8 +797,8 @@ function MotionLabOneContent() {
 
     for (let s = 0; s < swarmCount; s++) {
       swarmSeeds[s] = rand(0, Math.PI * 2);
-      swarmAmp[s] = rand(1.1, 3.1);
-      swarmSpeed[s] = rand(0.35, 0.92);
+      swarmAmp[s] = rand(0.45, 1.15);
+      swarmSpeed[s] = rand(0.16, 0.34);
 
       for (let p = 0; p < pointsPerSwarm; p++) {
         const i = s * pointsPerSwarm + p;
@@ -555,7 +848,7 @@ function MotionLabOneContent() {
     const swarmCloud = new THREE.Points(swarmGeo, swarmMat);
     scene.add(swarmCloud);
 
-    const sparkleCount = 1400;
+    const sparkleCount = isMobileViewport ? 420 : 760;
     const sparklePos = new Float32Array(sparkleCount * 3);
     const sparkleCol = new Float32Array(sparkleCount * 3);
     const sparkleSeeds = new Float32Array(sparkleCount);
@@ -615,7 +908,8 @@ function MotionLabOneContent() {
       const progress = Math.min(elapsed / introDurationMs, 1);
 
       const zoomIn = Math.min(progress / 0.54, 1);
-      const chaos = Math.min(Math.max((progress - 0.54) / 0.42, 0), 1);
+      const chaosRaw = Math.min(Math.max((progress - 0.54) / 0.42, 0), 1);
+      const chaos = chaosRaw * 0.42;
       const explode = Math.min(Math.max((progress - 0.985) / 0.015, 0), 1);
       const explodeEase = explode * explode;
       const nextOpacity = Math.min(Math.max((progress - 0.5) / 0.35, 0), 1);
@@ -652,7 +946,7 @@ function MotionLabOneContent() {
       cloudGeo.attributes.position.needsUpdate = true;
 
       cloudGroup.rotation.y += 0.0009 + zoomIn * 0.0004 + chaos * 0.0009;
-      cloudGroup.rotation.x = (mouseRef.current.y - 0.5) * 0.12 + chaos * 0.08;
+      cloudGroup.rotation.x = (mouseRef.current.y - 0.5) * 0.035 + chaos * 0.015;
       cloudGroup.position.y = -chaos * 0.35 - explodeEase * 3.4;
       cloudGroup.position.z = -explodeEase * 1.2;
 
@@ -665,21 +959,21 @@ function MotionLabOneContent() {
         const speed = swarmSpeed[s];
         const a = t * speed + seed;
 
-        const ringR = 0.82 + amp + chaos * 0.9;
-        const centerX = Math.cos(a) * ringR + Math.sin(a * 0.31 + seed * 1.9) * 0.9 + Math.sin(a * 0.63 + seed) * 0.44;
-        const centerZ = -1.45 - Math.sin(a * 0.8) * (0.9 + chaos * 1.1) - Math.cos(a * 0.47 + seed) * 0.62;
-        const centerY = -0.62 + Math.sin(a * 1.8) * (0.14 + amp * 0.04) + Math.cos(a * 1.3) * 0.12 + chaos * 0.16;
+        const ringR = 1.25 + amp + chaos * 0.22;
+        const centerX = Math.cos(a) * ringR + Math.sin(a * 0.35 + seed) * 0.32;
+        const centerZ = cityCenterZ + Math.sin(a) * ringR + Math.cos(a * 0.3 + seed) * 0.28;
+        const centerY = -0.7 + Math.sin(a * 1.2) * 0.08 + chaos * 0.04;
 
-        const blast = explodeEase * (6 + amp * 2.8);
+        const blast = explodeEase * (1.4 + amp * 0.7);
         const ex = Math.cos(seed * 2.1) * blast;
-        const ey = Math.sin(seed * 1.7) * blast * 0.6;
-        const ez = -blast * 1.25;
+        const ey = Math.sin(seed * 1.7) * blast * 0.28;
+        const ez = -blast * 0.4;
 
         const centerDx = centerX - mouseWorld.x;
         const centerDy = centerY - mouseWorld.y;
         const centerDz = centerZ - mouseWorld.z;
         const centerDist = Math.sqrt(centerDx * centerDx + centerDy * centerDy + centerDz * centerDz);
-        const centerRepel = Math.max(0, 1.7 - centerDist) * 0.7;
+        const centerRepel = Math.max(0, 1.2 - centerDist) * 0.26;
         const repelX = centerDist > 0.0001 ? (centerDx / centerDist) * centerRepel : 0;
         const repelY = centerDist > 0.0001 ? (centerDy / centerDist) * centerRepel : 0;
         const repelZ = centerDist > 0.0001 ? (centerDz / centerDist) * centerRepel : 0;
@@ -687,32 +981,32 @@ function MotionLabOneContent() {
         const localX = swarmBase[idx];
         const localY = swarmBase[idx + 1];
         const localZ = swarmBase[idx + 2];
-        const angle = Math.sin(a * 1.1 + swarmPulse[i]) * (0.4 + chaos * 0.35);
+        const angle = Math.sin(a * 0.85 + swarmPulse[i]) * (0.15 + chaos * 0.1);
         const ca = Math.cos(angle);
         const sa = Math.sin(angle);
 
         const rx = localX * ca - localY * sa;
         const ry = localX * sa + localY * ca;
-        const jitter = Math.sin(t * (1.9 + speed) + swarmPulse[i]) * 0.016;
+        const jitter = Math.sin(t * (1.2 + speed) + swarmPulse[i]) * 0.008;
 
         swarmPositions[idx] = centerX + repelX + ex + rx + jitter;
-        swarmPositions[idx + 1] = centerY + repelY + ey + ry + Math.cos(t * (1.3 + speed) + swarmPulse[i]) * 0.014;
-        swarmPositions[idx + 2] = centerZ + repelZ + ez + localZ + Math.sin(t * 1.2 + swarmPulse[i]) * 0.018;
+        swarmPositions[idx + 1] = centerY + repelY + ey + ry + Math.cos(t * (0.9 + speed) + swarmPulse[i]) * 0.008;
+        swarmPositions[idx + 2] = centerZ + repelZ + ez + localZ + Math.sin(t * 0.95 + swarmPulse[i]) * 0.01;
       }
       swarmGeo.attributes.position.needsUpdate = true;
-      swarmMat.opacity = (0.82 + chaos * 0.16) * (1 - explodeEase * 0.86);
+      swarmMat.opacity = (0.4 + chaos * 0.1) * (1 - explodeEase * 0.86);
 
       const sparklePositions = sparkleGeo.attributes.position.array as Float32Array;
       for (let i = 0; i < sparkleCount; i++) {
         const idx = i * 3;
         const seed = sparkleSeeds[i];
-        const swayX = Math.sin(t * (0.45 + sparkleLift[i] * 0.2) + seed) * (0.22 + chaos * 0.5);
-        const swayY = Math.cos(t * (0.62 + sparkleLift[i] * 0.2) + seed * 0.9) * (0.18 + chaos * 0.42);
-        const swayZ = Math.sin(t * 0.38 + seed * 1.3) * (0.28 + chaos * 0.7);
+        const swayX = Math.sin(t * (0.38 + sparkleLift[i] * 0.16) + seed) * (0.11 + chaos * 0.22);
+        const swayY = Math.cos(t * (0.5 + sparkleLift[i] * 0.16) + seed * 0.9) * (0.09 + chaos * 0.2);
+        const swayZ = Math.sin(t * 0.31 + seed * 1.3) * (0.13 + chaos * 0.3);
 
         let x = sparkleBase[idx] + swayX;
         let y = sparkleBase[idx + 1] + swayY;
-        let z = sparkleBase[idx + 2] + swayZ - chaos * (0.6 + sparkleLift[i] * 0.8);
+        let z = sparkleBase[idx + 2] + swayZ - chaos * (0.25 + sparkleLift[i] * 0.35);
 
         const dx = x - mouseWorld.x;
         const dy = y - mouseWorld.y;
@@ -725,72 +1019,30 @@ function MotionLabOneContent() {
           z += (dz / d) * p;
         }
 
-        x += Math.sin(seed * 1.7) * explodeEase * (2.8 + sparkleLift[i] * 1.2);
-        y += Math.cos(seed * 1.3) * explodeEase * (2.2 + sparkleLift[i] * 1.1);
-        z -= explodeEase * (5.4 + sparkleLift[i] * 1.6);
+        x += Math.sin(seed * 1.7) * explodeEase * (1.1 + sparkleLift[i] * 0.5);
+        y += Math.cos(seed * 1.3) * explodeEase * (0.95 + sparkleLift[i] * 0.45);
+        z -= explodeEase * (2.6 + sparkleLift[i] * 0.7);
 
         sparklePositions[idx] = x;
         sparklePositions[idx + 1] = y;
         sparklePositions[idx + 2] = z;
       }
       sparkleGeo.attributes.position.needsUpdate = true;
-      sparkleMat.opacity = (0.86 + chaos * 0.12) * (1 - explodeEase * 0.86);
+      sparkleMat.opacity = (0.5 + chaos * 0.08) * (1 - explodeEase * 0.86);
 
-      camera.position.z = 4.8 - zoomIn * 4.15 + chaos * 0.7 + explodeEase * 9.2;
-      camera.position.y = 0.95 + Math.sin(t * 0.9) * 0.03 + zoomIn * 0.36 + chaos * 0.45 + explodeEase * 2.1;
-      camera.position.x = (mouseRef.current.x - 0.5) * 0.28 + Math.sin(t * 0.45) * chaos * 0.24;
-      camera.lookAt(0, 0.18 + chaos * 0.05 + explodeEase * 0.55, -2.2 - zoomIn * 2.8 - chaos * 1.9);
+      const orbitTurns = isMobileViewport ? 0.38 : 0.56;
+      const orbitAngle = -Math.PI * 0.25 + progress * Math.PI * 2 * orbitTurns;
+      const orbitRadius = (isMobileViewport ? 6.6 : 6.1) - zoomIn * 0.72 + chaos * 0.04;
+
+      camera.position.x = Math.cos(orbitAngle) * orbitRadius;
+      camera.position.z = cityCenterZ + Math.sin(orbitAngle) * orbitRadius + explodeEase * 7.8;
+      camera.position.y = 1.1 + zoomIn * 0.5 + chaos * 0.08 + explodeEase * 1.55;
+      camera.lookAt(0, 0.08 + chaos * 0.03 + explodeEase * 0.26, cityCenterZ + 0.08);
 
       stars.rotation.y += 0.00024 + chaos * 0.0015;
       stars.position.y = -chaos * 1.2 - explodeEase * 4.8;
 
       swarmCloud.position.y = -explodeEase * 0.7;
-
-      const textPositions = textGeo.attributes.position.array as Float32Array;
-      const repelRadius = 0.72;
-      for (let i = 0; i < textCount; i++) {
-        const idx = i * 3;
-        let x = textPositions[idx];
-        let y = textPositions[idx + 1];
-        let z = textPositions[idx + 2];
-
-        const bx = textBase[idx];
-        const by = textBase[idx + 1];
-        const bz = textBase[idx + 2];
-
-        // Spring back to original text silhouette.
-        textVel[idx] += (bx - x) * 0.028;
-        textVel[idx + 1] += (by - y) * 0.028;
-        textVel[idx + 2] += (bz - z) * 0.028;
-
-        // Mouse repulsion so letters scatter under cursor.
-        const dx = x - mouseWorld.x;
-        const dy = y - mouseWorld.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < repelRadius && dist > 0.0001) {
-          const power = (repelRadius - dist) * 0.13;
-          textVel[idx] += (dx / dist) * power;
-          textVel[idx + 1] += (dy / dist) * power;
-        }
-
-        textVel[idx] *= 0.9;
-        textVel[idx + 1] *= 0.9;
-        textVel[idx + 2] *= 0.9;
-
-        x += textVel[idx];
-        y += textVel[idx + 1];
-        z += textVel[idx + 2];
-
-        // During blast, move the text out with scene particles.
-        z -= explodeEase * 3.9;
-        y -= explodeEase * 0.4;
-
-        textPositions[idx] = x;
-        textPositions[idx + 1] = y;
-        textPositions[idx + 2] = z;
-      }
-      textGeo.attributes.position.needsUpdate = true;
-      textMat.opacity = Math.max(0, 0.95 - explodeEase * 1.1);
 
       root.style.setProperty('--next-opacity', String(nextOpacity));
       root.style.setProperty('--stage-opacity', String(stageOpacity));
@@ -849,11 +1101,9 @@ function MotionLabOneContent() {
       swarmMat.dispose();
       sparkleGeo.dispose();
       sparkleMat.dispose();
-      textGeo.dispose();
-      textMat.dispose();
       renderer.dispose();
     };
-  }, []);
+  }, [isBootReady]);
 
   useEffect(() => {
     // Scroll-driven intro is intentionally disabled in favor of time-based intro.
@@ -886,6 +1136,11 @@ function MotionLabOneContent() {
 
   return (
     <main ref={rootRef} className={styles.root} onMouseMove={handleMove} onMouseLeave={handleLeave}>
+      <canvas ref={trailCanvasRef} className={styles.cursorTrail} aria-hidden="true" />
+      <div className={`${styles.loaderOverlay} ${isBootReady ? styles.loaderOverlayReady : ''}`} aria-hidden="true">
+        <canvas ref={loaderCanvasRef} className={styles.loaderCanvas} />
+      </div>
+
       {showInstallHint && (
         <div className={styles.installHint} role="status" aria-live="polite">
           <span>{installHintText}</span>
@@ -898,6 +1153,12 @@ function MotionLabOneContent() {
       <section ref={stageRef} className={styles.stage}>
         <div ref={stickyViewportRef} className={styles.stickyViewport}>
           <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
+          <div className={styles.introTitleOverlay} aria-hidden="true">
+            <div className={styles.introTitleStack}>
+              <div className={styles.introTitleMain}>KENTAŞ</div>
+              <div className={styles.introTitleSub}>Tech &amp; AR-GE</div>
+            </div>
+          </div>
         </div>
       </section>
 
