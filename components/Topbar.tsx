@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import MagicInput from './MagicInput';
 import NotificationBell from './NotificationBell';
-import { RefreshCw, LogOut, User, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, LogOut, User, Calendar, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { getWeekNumber, getWeekMonday } from '@/lib/parser';
 
 export default function Topbar() {
-  const { view, setView, triggerRollover, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear } = useAppStore();
+  const { view, setView, triggerRollover, setCurrentMemberId, selectedWeek, selectedYear, setSelectedWeekYear, setSidebarOpen } = useAppStore();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [showWeekPicker, setShowWeekPicker] = useState(false);
@@ -83,6 +83,15 @@ export default function Topbar() {
 
   return (
     <header className="topbar">
+      {/* Mobile Menu Toggle */}
+      <button
+        className="btn-icon show-mobile"
+        style={{ marginRight: -8 }}
+        onClick={() => setSidebarOpen(true)}
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Logo + week indicator */}
       <div ref={weekPickerRef} style={{ position: 'relative' }}>
         <button
@@ -94,7 +103,7 @@ export default function Topbar() {
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)', letterSpacing: '-0.03em', lineHeight: 1 }}>
             Project<span style={{ color: 'var(--accent)' }}>Hub</span>
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className="hide-mobile" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 4 }}>
             Hafta {selectedWeek} · <span style={{ color: 'var(--accent-dim)' }}>{mondayStr} baslangici</span>
             <Calendar size={11} />
           </div>

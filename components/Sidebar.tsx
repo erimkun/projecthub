@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  LayoutDashboard, Users, FileText, Upload, Plus
+  LayoutDashboard, Users, FileText, Upload, Plus, X
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import AddMemberModal from './AddMemberModal';
@@ -18,7 +18,12 @@ export default function Sidebar() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const { projects, members, currentMemberId, setCurrentMemberId, view, setView } = useAppStore();
+  const { projects, members, currentMemberId, setCurrentMemberId, view, setView, isSidebarOpen, setSidebarOpen } = useAppStore();
+
+  const handleNavClick = (action: () => void) => {
+    action();
+    setSidebarOpen(false);
+  };
 
   const navItems = [
     { id: 'dashboard' as SidebarSection, label: 'Dashboard', icon: <LayoutDashboard size={15} />, action: () => { setView('personal'); setActiveSection('dashboard'); setSelectedProjectId(null); } },
@@ -31,30 +36,40 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="sidebar">
+      <div 
+        className={`sidebar-backdrop ${isSidebarOpen ? 'visible' : ''}`} 
+        onClick={() => setSidebarOpen(false)} 
+      />
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <nav className="sidebar-nav">
-          <div className="nav-section-label hide-mobile">Genel</div>
+          <div className="show-mobile" style={{ padding: '4px 8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn-icon" onClick={() => setSidebarOpen(false)}>
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="nav-section-label">Genel</div>
           {navItems.map((item) => (
             <div
               key={item.id}
               id={`nav-${item.id}`}
               className={`nav-item${actualActive === item.id && !selectedProjectId ? ' active' : ''}`}
-              onClick={item.action}
+              onClick={() => handleNavClick(item.action)}
             >
               {item.icon}
-              <span className={item.id === 'import' ? 'hide-mobile' : ''}>{item.label}</span>
+              <span>{item.label}</span>
             </div>
           ))}
 
-          <div className="divider hide-mobile" />
+          <div className="divider" />
 
-          <div className="nav-section-label hide-mobile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
+          <div className="nav-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
             Projeler
             <button className="btn-icon" onClick={() => setShowAddProject(true)} title="Proje Ekle" id="btn-add-project">
               <Plus size={12} />
             </button>
           </div>
-          <div className="hide-mobile">
+          <div>
             {projects.map((p) => (
               <div
                 key={p.id}
@@ -62,6 +77,7 @@ export default function Sidebar() {
                 onClick={() => {
                   setSelectedProjectId(p.id);
                   setView('personal');
+                  setSidebarOpen(false);
                 }}
                 style={{ cursor: 'pointer' }}
               >
@@ -71,15 +87,15 @@ export default function Sidebar() {
             ))}
           </div>
 
-          <div className="divider hide-mobile" />
+          <div className="divider" />
 
-          <div className="nav-section-label hide-mobile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, marginTop: 16 }}>
+          <div className="nav-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, marginTop: 16 }}>
             Üyeler
             <button className="btn-icon" onClick={() => setShowAddMember(true)} title="Üye Ekle" id="btn-add-member">
               <Plus size={12} />
             </button>
           </div>
-          <div className="hide-mobile">
+          <div>
             {members.map((m) => (
               <div
                 key={m.id}
@@ -88,6 +104,7 @@ export default function Sidebar() {
                   setCurrentMemberId(m.id);
                   setView('personal');
                   setActiveSection('dashboard');
+                  setSidebarOpen(false);
                 }}
                 style={{ cursor: 'pointer' }}
               >

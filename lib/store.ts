@@ -10,6 +10,8 @@ interface AppStore {
   // View state
   view: ViewMode;
   setView: (v: ViewMode) => void;
+  isSidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 
   // Current user (simple: first member by default)
   currentMemberId: number | null;
@@ -69,6 +71,8 @@ interface AppStore {
 export const useAppStore = create<AppStore>((set, get) => ({
   view: 'personal',
   setView: (v) => set({ view: v }),
+  isSidebarOpen: false,
+  setSidebarOpen: (open) => set({ isSidebarOpen: open }),
 
   currentMemberId: null,
   setCurrentMemberId: (id) => set({ currentMemberId: id }),
