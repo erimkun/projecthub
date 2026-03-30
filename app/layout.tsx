@@ -6,20 +6,21 @@ import type { Viewport } from 'next';
 export const metadata: Metadata = {
   title: 'Project Hub — Ekip Üretkenlik Paneli',
   description: 'Kişisel odak ve ekip şeffaflığı arasında denge kuran proje yönetim aracı',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       {
-        url: '/logo.jpeg',
-        type: 'image/jpeg',
+        url: '/logo.png',
+        type: 'image/png',
       },
     ],
     apple: [
       {
-        url: '/logo.jpeg',
-        type: 'image/jpeg',
+        url: '/logo.png',
+        type: 'image/png',
       },
     ],
-    shortcut: '/logo.jpeg',
+    shortcut: '/logo.png',
   },
 };
 
