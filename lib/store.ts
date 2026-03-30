@@ -120,7 +120,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Keep currentMemberId consistent: if deleted, pick a new one (or null).
     const current = get().currentMemberId;
     if (current) {
-      if (!members.some((m) => m.id === current)) {
+      if (!members.some((m: Member) => m.id === current)) {
         set({ currentMemberId: members.length > 0 ? members[0].id : null });
       }
     } else if (members.length > 0) {
