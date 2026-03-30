@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as THREE from 'three';
 import { useAppStore } from '@/lib/store';
@@ -54,7 +54,7 @@ function buildParticleText(
   return points;
 }
 
-export default function MotionLabOnePage() {
+function MotionLabOneContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isJustLoggedIn = searchParams.get('login') === '1';
@@ -910,5 +910,13 @@ export default function MotionLabOnePage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function MotionLabOnePage() {
+  return (
+    <Suspense fallback={null}>
+      <MotionLabOneContent />
+    </Suspense>
   );
 }
