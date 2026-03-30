@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { PWARegister } from '@/components/PWARegister';
 
 import type { Viewport } from 'next';
 
 export const metadata: Metadata = {
   title: 'Project Hub — Ekip Üretkenlik Paneli',
   description: 'Kişisel odak ve ekip şeffaflığı arasında denge kuran proje yönetim aracı',
-  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       {
@@ -38,7 +36,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </head>
       <body>
-        <PWARegister />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(reg => console.log('SW registered successfully:', reg.scope))
+                    .catch(err => console.log('SW registration failed:', err));
+                });
+              }
+            `,
+          }}
+        />
         {children}
       </body>
     </html>
