@@ -33,7 +33,7 @@ export default function Sidebar() {
     <>
       <aside className="sidebar">
         <nav className="sidebar-nav">
-          <div className="nav-section-label">Genel</div>
+          <div className="nav-section-label hide-mobile">Genel</div>
           {navItems.map((item) => (
             <div
               key={item.id}
@@ -42,74 +42,70 @@ export default function Sidebar() {
               onClick={item.action}
             >
               {item.icon}
-              {item.label}
+              <span className={item.id === 'import' ? 'hide-mobile' : ''}>{item.label}</span>
             </div>
           ))}
 
-          <div className="divider" />
+          <div className="divider hide-mobile" />
 
-          <div className="nav-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
+          <div className="nav-section-label hide-mobile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
             Projeler
             <button className="btn-icon" onClick={() => setShowAddProject(true)} title="Proje Ekle" id="btn-add-project">
               <Plus size={12} />
             </button>
           </div>
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              className={`nav-item${selectedProjectId === p.id ? ' active' : ''}`}
-              onClick={() => {
-                setSelectedProjectId(p.id);
-                setView('personal');
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-              <span className="truncate">{p.name}</span>
-            </div>
-          ))}
+          <div className="hide-mobile">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                className={`nav-item${selectedProjectId === p.id ? ' active' : ''}`}
+                onClick={() => {
+                  setSelectedProjectId(p.id);
+                  setView('personal');
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                <span className="truncate">{p.name}</span>
+              </div>
+            ))}
+          </div>
 
-          <div className="divider" />
+          <div className="divider hide-mobile" />
 
-          <div className="nav-section-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, marginTop: 16 }}>
+          <div className="nav-section-label hide-mobile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8, marginTop: 16 }}>
             Üyeler
             <button className="btn-icon" onClick={() => setShowAddMember(true)} title="Üye Ekle" id="btn-add-member">
               <Plus size={12} />
             </button>
           </div>
-          {members.map((m) => (
-            <div
-              key={m.id}
-              className={`nav-item${activeSection === 'dashboard' && currentMemberId === m.id ? ' active' : ''}`}
-              onClick={() => {
-                setCurrentMemberId(m.id);
-                setView('personal');
-                setActiveSection('dashboard');
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <img src={m.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random`} style={{ width: 16, height: 16, borderRadius: '50%' }} alt="" />
-              <span className="truncate">{m.name}</span>
-            </div>
-          ))}
+          <div className="hide-mobile">
+            {members.map((m) => (
+              <div
+                key={m.id}
+                className={`nav-item${activeSection === 'dashboard' && currentMemberId === m.id ? ' active' : ''}`}
+                onClick={() => {
+                  setCurrentMemberId(m.id);
+                  setView('personal');
+                  setActiveSection('dashboard');
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <img src={m.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random`} style={{ width: 16, height: 16, borderRadius: '50%' }} alt="" />
+                <span className="truncate">{m.name}</span>
+              </div>
+            ))}
+          </div>
         </nav>
       </aside>
 
       {/* Project detail panel — renders in the main area via a portal-like approach */}
       {selectedProjectId && (
         <div
-          style={{
-            position: 'fixed',
-            top: 56,
-            left: 240,
-            right: 0,
-            bottom: 0,
-            zIndex: 60,
-            background: 'var(--bg-base)',
-          }}
+          className="project-detail-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedProjectId(null); }}
         >
-          <div style={{ width: '100%', height: '100%', padding: 24, overflowY: 'auto' }}>
+          <div className="project-detail-container">
             <ProjectDetailView key={selectedProjectId} projectId={selectedProjectId} onClose={() => setSelectedProjectId(null)} />
           </div>
         </div>

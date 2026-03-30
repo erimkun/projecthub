@@ -113,8 +113,8 @@ export default function MotionLabOnePage() {
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x05070d, 0.09);
 
-    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1000);
-    camera.position.set(0, 0.95, 4.8);
+    const camera = new THREE.PerspectiveCamera(window.innerWidth < 900 ? 54 : 48, 1, 0.1, 1000);
+    camera.position.set(0, 0.95, window.innerWidth < 900 ? 6.2 : 4.8);
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -147,8 +147,8 @@ export default function MotionLabOnePage() {
       'KENTAŞ TECH VE ARGE',
       1800,
       520,
-      window.innerWidth < 900 ? 8 : 6,
-      window.innerWidth < 900 ? 0.004 : 0.0036
+      window.innerWidth < 900 ? 10 : 6,
+      window.innerWidth < 900 ? 0.0032 : 0.0036
     );
 
     const textCount = textPoints.length;

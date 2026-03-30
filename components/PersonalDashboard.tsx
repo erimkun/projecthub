@@ -138,7 +138,7 @@ export default function PersonalDashboard() {
   ];
 
   return (
-    <div>
+    <div className="personal-dashboard-root">
       {/* Header */}
       <div className="mb-6">
         <h1>
@@ -185,7 +185,7 @@ export default function PersonalDashboard() {
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+      <div className="stats-grid">
         {statCards.map((stat) => (
           <div
             key={stat.id}
@@ -305,7 +305,7 @@ export default function PersonalDashboard() {
             </button>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          <div className="responsive-grid">
             {/* New Note Card */}
             <div
               className="card"

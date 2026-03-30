@@ -165,14 +165,16 @@ export default function Topbar() {
           className={`view-toggle-btn${view === 'personal' ? ' active' : ''}`}
           onClick={() => setView('personal')}
         >
-          Kişisel Alanım
+          <span className="hide-mobile">Kişisel Alanım</span>
+          <span className="show-mobile">Benim</span>
         </button>
         <button
           id="btn-team-view"
           className={`view-toggle-btn${view === 'team' ? ' active' : ''}`}
           onClick={() => setView('team')}
         >
-          Ekip Radarı
+          <span className="hide-mobile">Ekip Radarı</span>
+          <span className="show-mobile">Ekip</span>
         </button>
       </div>
 
@@ -183,12 +185,12 @@ export default function Topbar() {
       <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
         <button
           id="btn-rollover"
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm hide-mobile"
           onClick={triggerRollover}
           title="Manuel haftalık devir"
         >
           <RefreshCw size={13} />
-          Manuel Devir
+          Devir
         </button>
         <NotificationBell />
         {username && (
