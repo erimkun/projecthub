@@ -4,7 +4,7 @@ import getDb from '@/lib/db';
 import { createSession, COOKIE_NAME } from '@/lib/session';
 
 export async function POST(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const body = await req.json();
   const { username, password, action } = body; // action: 'login' | 'register'
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
   if (action === 'register') {
     // Check if username exists
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim());
+    const existing = await db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim());
     if (existing) {
       return NextResponse.json({ error: 'Bu kullanıcı adı zaten alınmış' }, { status: 409 });
     }
@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
     const hash = await bcrypt.hash(password, 10);
 
     // Create a member profile with the same name
-    const memberResult = db.prepare(
+    const memberResult = await db.prepare(
       "INSERT INTO members (name, status) VALUES (?, 'available')"
     ).run(username.trim());
 
-    const userResult = db.prepare(
+    const userResult = await db.prepare(
       'INSERT INTO users (username, password_hash, member_id) VALUES (?, ?, ?)'
     ).run(username.trim(), hash, memberResult.lastInsertRowid);
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Login
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim()) as
+  const user = await db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim()) as
     | { id: number; username: string; password_hash: string; member_id: number | null }
     | undefined;
 

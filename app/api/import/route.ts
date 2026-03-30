@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { getWeekNumber } from '@/lib/parser';
 
 export async function POST(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const formData = await req.formData();
   const file = formData.get('file') as File;
   if (!file) return NextResponse.json({ error: 'Dosya bulunamadı' }, { status: 400 });
@@ -15,13 +15,14 @@ export async function POST(req: NextRequest) {
   const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[];
 
   const { week, year } = getWeekNumber();
-  const insert = db.prepare(
-    'INSERT INTO tasks (title, body, status, project_id, assigned_to, week_number, year, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  );
 
-  const insertMany = db.transaction((tasks: typeof rows) => {
-    for (const row of tasks) {
-      insert.run(
+  const insertMany = db.transaction(async (txDb) => {
+    const txInsert = txDb.prepare(
+      'INSERT INTO tasks (title, body, status, project_id, assigned_to, week_number, year, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    for (const row of rows) {
+      await txInsert.run(
         String(row['Başlık'] || row['Title'] || row['title'] || 'İsimsiz Görev'),
         String(row['Açıklama'] || row['Body'] || row['description'] || ''),
         'pending',
@@ -34,13 +35,13 @@ export async function POST(req: NextRequest) {
     }
   });
 
-  insertMany(rows);
+  await insertMany();
   return NextResponse.json({ imported: rows.length });
 }
 
 export async function GET() {
-  const db = getDb();
-  const tasks = db.prepare(`
+  const db = await getDb();
+  const tasks = await db.prepare(`
     SELECT t.id, t.title, t.body, t.status, t.tags, t.week_number, t.year,
       p.name as project, m.name as assigned_to
     FROM tasks t

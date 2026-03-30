@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const db = getDb();
+  const db = await getDb();
   const { id } = await params;
   if (!id) return NextResponse.json({ error: 'Eksik proje ID' }, { status: 400 });
 
   const projectId = Number(id);
-  const project = db.prepare('SELECT id, name, color FROM projects WHERE id = ?').get(projectId) as
+  const project = await db.prepare('SELECT id, name, color FROM projects WHERE id = ?').get(projectId) as
     | { id: number; name: string; color: string }
     | undefined;
 
@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Proje bulunamadı' }, { status: 404 });
   }
 
-  const totals = db.prepare(`
+  const totals = await db.prepare(`
     SELECT
       COUNT(*) as totalTasks,
       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as doneTasks
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     WHERE project_id = ?
   `).get(projectId) as { totalTasks: number; doneTasks: number | null };
 
-  const weeklyRows = db.prepare(`
+  const weeklyRows = await db.prepare(`
     SELECT
       year,
       week_number as week,
@@ -51,7 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     tasks: tasksByWeekStmt.all(projectId, row.year, row.week),
   }));
 
-  const memberBreakdown = db.prepare(`
+  const memberBreakdown = await db.prepare(`
     SELECT
       m.id as memberId,
       m.name as name,
@@ -74,14 +74,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const db = getDb();
+  const db = await getDb();
   const { id } = await params;
   if (!id) return NextResponse.json({ error: 'Eksik proje ID' }, { status: 400 });
 
-  db.transaction(() => {
-    db.prepare('DELETE FROM projects WHERE id = ?').run(Number(id));
-    db.prepare('DELETE FROM tasks WHERE project_id = ?').run(Number(id));
-  })();
+  const removeProject = db.transaction(async (txDb) => {
+    await txDb.prepare('DELETE FROM projects WHERE id = ?').run(Number(id));
+    await txDb.prepare('DELETE FROM tasks WHERE project_id = ?').run(Number(id));
+  });
+
+  await removeProject();
 
   return NextResponse.json({ success: true });
 }

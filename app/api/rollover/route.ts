@@ -14,7 +14,7 @@ function getPreviousIsoWeek(week: number, year: number) {
 }
 
 export async function POST(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode === 'auto' ? 'auto' : 'manual';
   const now = new Date();
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     newYear = next.year;
 
     const autoKey = `auto-rollover-${sourceYear}-W${sourceWeek}`;
-    const alreadyDone = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(autoKey) as { value?: string } | undefined;
+    const alreadyDone = await db.prepare('SELECT value FROM app_settings WHERE key = ?').get(autoKey) as { value?: string } | undefined;
     if (alreadyDone?.value === 'done') {
       const skippedResult: RolloverResult = {
         rolledOver: 0,
@@ -66,41 +66,38 @@ export async function POST(req: NextRequest) {
     sourceYear = prev.year;
   }
 
-  const sourceTasks = db.prepare(
+  const sourceTasks = await db.prepare(
     "SELECT * FROM tasks WHERE week_number = ? AND year = ?"
   ).all(sourceWeek, sourceYear) as Array<{
     id: number; title: string; body: string; status: string;
     project_id: number; assigned_to: number; helper_id: number; tags: string;
   }>;
 
-  const rolloverInsert = db.prepare(`
+  const rolloverInsertSql = `
     INSERT INTO tasks (
       title, body, status, project_id, assigned_to, helper_id,
       week_number, year, is_rollover, origin_task_id, source_week_number, source_year, pulled_into_current_week, tags
     )
     VALUES (?, ?, 'pending', ?, ?, NULL, ?, ?, 1, ?, ?, ?, 0, ?)
-  `);
+  `;
 
-  const duplicateCheck = db.prepare(`
+  const duplicateCheckSql = `
     SELECT id FROM tasks WHERE origin_task_id = ? AND week_number = ? AND year = ? LIMIT 1
-  `);
-
-  const upsertSetting = db.prepare(`
-    INSERT INTO app_settings (key, value, updated_at)
-    VALUES (?, ?, datetime('now'))
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
-  `);
+  `;
 
   let rolledOver = 0;
   let archived = 0;
 
-  const doRollover = db.transaction(() => {
+  const doRollover = db.transaction(async (txDb) => {
+    const rolloverInsert = txDb.prepare(rolloverInsertSql);
+    const duplicateCheck = txDb.prepare(duplicateCheckSql);
+
     for (const task of sourceTasks) {
       if (task.status !== 'done') {
-        const exists = duplicateCheck.get(task.id, newWeek, newYear) as { id: number } | undefined;
+        const exists = await duplicateCheck.get(task.id, newWeek, newYear) as { id: number } | undefined;
         if (exists) continue;
 
-        rolloverInsert.run(
+        await rolloverInsert.run(
           task.title, task.body, task.project_id, task.assigned_to,
           newWeek, newYear, task.id, sourceWeek, sourceYear, task.tags
         );
@@ -112,11 +109,13 @@ export async function POST(req: NextRequest) {
 
     if (mode === 'auto') {
       const autoKey = `auto-rollover-${sourceYear}-W${sourceWeek}`;
-      upsertSetting.run(autoKey, 'done');
+      await txDb.prepare(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, NOW()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = NOW()`
+      ).run(autoKey, 'done');
     }
   });
 
-  doRollover();
+  await doRollover();
 
   const result: RolloverResult = { rolledOver, archived, newWeek, newYear };
   return NextResponse.json(result);

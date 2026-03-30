@@ -3,7 +3,7 @@ import getDb from '@/lib/db';
 import { getWeekNumber } from '@/lib/parser';
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const { searchParams } = new URL(req.url);
   const assignedTo = searchParams.get('assignedTo');
   const weekNum = searchParams.get('week');
@@ -31,12 +31,12 @@ export async function GET(req: NextRequest) {
 
   query += ` ORDER BY t.created_at DESC`;
 
-  const tasks = db.prepare(query).all(...params);
+  const tasks = await db.prepare(query).all(...params);
   return NextResponse.json(tasks);
 }
 
 export async function POST(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const body = await req.json();
   const { week, year } = getWeekNumber();
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const result = stmt.run(
+  const result = await stmt.run(
     body.title || 'Yeni Görev',
     body.body || '',
     body.status || 'pending',
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     body.tags || ''
   );
 
-  const task = db.prepare(`
+  const task = await db.prepare(`
     SELECT t.*, p.name as project_name, p.color as project_color,
       m1.name as assigned_name
     FROM tasks t

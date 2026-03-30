@@ -1,84 +1,173 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { Pool, PoolClient } from 'pg';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'project-hub.db');
+type DbRow = Record<string, unknown>;
 
-const dataDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+type RunResult = {
+  changes: number;
+  lastInsertRowid: number | null;
+};
+
+type Statement = {
+  run: (...params: unknown[]) => Promise<RunResult>;
+  get: (...params: unknown[]) => Promise<DbRow | undefined>;
+  all: (...params: unknown[]) => Promise<DbRow[]>;
+};
+
+type QueryTarget = Pool | PoolClient;
+
+type DbHandle = {
+  prepare: (sql: string) => Statement;
+  transaction: <T>(fn: (tx: DbHandle) => Promise<T> | T) => () => Promise<T>;
+  exec: (sql: string) => Promise<void>;
+};
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+});
+
+let initPromise: Promise<void> | null = null;
+
+function normalizeSql(sql: string): string {
+  return sql
+    .replace(/datetime\('now'\)/gi, 'NOW()')
+    .replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO');
 }
 
-let db: Database.Database;
+function toPgPlaceholders(sql: string): string {
+  let index = 0;
+  return sql.replace(/\?/g, () => `$${++index}`);
+}
 
-function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    initSchema(db);
+function extractInsertTable(sql: string): string | null {
+  const match = sql.match(/^\s*INSERT\s+INTO\s+(["\w.]+)/i);
+  if (!match) return null;
+  return match[1].replace(/"/g, '').toLowerCase();
+}
+
+function buildSql(sql: string): string {
+  let normalized = normalizeSql(sql);
+  normalized = toPgPlaceholders(normalized);
+
+  if (/^\s*INSERT\s+OR\s+IGNORE\s+INTO/i.test(sql)) {
+    normalized = `${normalized} ON CONFLICT DO NOTHING`;
+    return normalized;
   }
-  return db;
+
+  if (/^\s*INSERT\s+/i.test(sql) && !/RETURNING\s+/i.test(normalized)) {
+    const table = extractInsertTable(normalized);
+    if (table && !['app_settings', 'note_tasks'].includes(table)) {
+      normalized = `${normalized} RETURNING id`;
+    }
+  }
+
+  return normalized;
 }
 
-function initSchema(db: Database.Database) {
-  db.exec(`
-    -- Users (authentication)
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
-      created_at TEXT DEFAULT (datetime('now'))
+async function query(target: QueryTarget, sql: string, params: unknown[] = []): Promise<DbRow[]> {
+  const result = await target.query(buildSql(sql), params);
+  return result.rows as DbRow[];
+}
+
+function createHandle(target: QueryTarget): DbHandle {
+  return {
+    prepare(sql: string): Statement {
+      return {
+        async run(...params: unknown[]) {
+          const rows = await query(target, sql, params);
+          const first = rows[0];
+          const lastInsertRowid = first && typeof first.id !== 'undefined' ? Number(first.id) : null;
+          return { changes: rows.length, lastInsertRowid };
+        },
+        async get(...params: unknown[]) {
+          const rows = await query(target, sql, params);
+          return rows[0];
+        },
+        async all(...params: unknown[]) {
+          return query(target, sql, params);
+        },
+      };
+    },
+    transaction<T>(fn: (tx: DbHandle) => Promise<T> | T) {
+      return async () => {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const txHandle = createHandle(client);
+          const result = await fn(txHandle);
+          await client.query('COMMIT');
+          return result;
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+      };
+    },
+    async exec(sql: string) {
+      await target.query(sql);
+    },
+  };
+}
+
+async function initSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS members (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      avatar TEXT,
+      status TEXT NOT NULL DEFAULT 'available',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
-      color TEXT DEFAULT '#f59e0b',
-      created_at TEXT DEFAULT (datetime('now'))
+      color TEXT NOT NULL DEFAULT '#f59e0b',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS members (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      avatar TEXT,
-      status TEXT DEFAULT 'available',
-      created_at TEXT DEFAULT (datetime('now'))
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
-      body TEXT DEFAULT '',
-      status TEXT DEFAULT 'pending',
+      body TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
       project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
       assigned_to INTEGER REFERENCES members(id) ON DELETE SET NULL,
       helper_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
       week_number INTEGER NOT NULL DEFAULT 1,
       year INTEGER NOT NULL DEFAULT 2024,
-      is_rollover INTEGER DEFAULT 0,
+      is_rollover INTEGER NOT NULL DEFAULT 0,
       origin_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
       source_week_number INTEGER,
       source_year INTEGER,
-      pulled_into_current_week INTEGER DEFAULT 0,
-      tags TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
+      pulled_into_current_week INTEGER NOT NULL DEFAULT 0,
+      tags TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS notes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT DEFAULT 'Yeni Not',
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT 'Yeni Not',
       content TEXT NOT NULL DEFAULT '',
       project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS note_tasks (
@@ -88,34 +177,32 @@ function initSchema(db: Database.Database) {
     );
 
     CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       to_member_id INTEGER REFERENCES members(id) ON DELETE CASCADE,
       from_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
       task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
       type TEXT NOT NULL,
-      message TEXT DEFAULT '',
-      read INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
+      message TEXT NOT NULL DEFAULT '',
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    -- Seed default projects only (no mock users/members)
-    INSERT OR IGNORE INTO projects (id, name, color) VALUES
+    INSERT INTO projects (id, name, color)
+    VALUES
       (1, 'Genel', '#f59e0b'),
       (2, 'Backend', '#6366f1'),
-      (3, 'Frontend', '#10b981');
+      (3, 'Frontend', '#10b981')
+    ON CONFLICT (id) DO NOTHING;
   `);
-
-  // Backfill new columns for existing databases.
-  ensureColumn(db, 'tasks', 'origin_task_id', 'INTEGER REFERENCES tasks(id) ON DELETE SET NULL');
-  ensureColumn(db, 'tasks', 'source_week_number', 'INTEGER');
-  ensureColumn(db, 'tasks', 'source_year', 'INTEGER');
-  ensureColumn(db, 'tasks', 'pulled_into_current_week', 'INTEGER DEFAULT 0');
 }
 
-function ensureColumn(db: Database.Database, table: string, column: string, definition: string) {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (columns.some((c) => c.name === column)) return;
-  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+async function getDb(): Promise<DbHandle> {
+  if (!initPromise) {
+    initPromise = initSchema();
+  }
+
+  await initPromise;
+  return createHandle(pool);
 }
 
 export default getDb;

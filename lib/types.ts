@@ -25,7 +25,7 @@ export interface Task {
   status: TaskStatus;
   project_id?: number;
   assigned_to?: number;
-  helper_id?: number;
+  helper_id?: number | null;
   week_number: number;
   year: number;
   is_rollover: number;

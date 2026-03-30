@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const db = getDb();
+  const db = await getDb();
   const { id } = await params;
   const body = await req.json();
 
@@ -26,17 +26,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (fields.length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
 
   values.push(Number(id));
-  db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  await db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
 
   // Create notification if status changed to 'sos'
   if (body.status === 'sos' && body.sos_from && body.sos_to) {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO notifications (to_member_id, from_member_id, task_id, type, message)
       VALUES (?, ?, ?, 'sos', ?)
     `).run(body.sos_to, body.sos_from, Number(id), `SOS: ${body.task_title || 'Görev'} için yardım isteniyor`);
   }
 
-  const task = db.prepare(`
+  const task = await db.prepare(`
     SELECT t.*, p.name as project_name, p.color as project_color,
       m1.name as assigned_name, m2.name as helper_name
     FROM tasks t
@@ -50,8 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const db = getDb();
+  const db = await getDb();
   const { id } = await params;
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(Number(id));
+  await db.prepare('DELETE FROM tasks WHERE id = ?').run(Number(id));
   return NextResponse.json({ success: true });
 }

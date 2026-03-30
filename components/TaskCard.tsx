@@ -61,9 +61,9 @@ export default function TaskCard({ task }: TaskCardProps) {
   };
 
   const handleMoveNextWeek = async () => {
-    let nextWeek = week + 1;
-    let nextYear = year;
-    if (nextWeek > 52) { nextWeek = 1; nextYear = year + 1; }
+    let nextWeek = selectedWeek + 1;
+    let nextYear = selectedYear;
+    if (nextWeek > 52) { nextWeek = 1; nextYear = selectedYear + 1; }
     await updateTask(task.id, {
       week_number: nextWeek,
       year: nextYear,

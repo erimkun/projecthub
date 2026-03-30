@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const { searchParams } = new URL(req.url);
   const memberId = searchParams.get('memberId');
 
   let notifications;
   if (memberId) {
-    notifications = db.prepare(`
+    notifications = await db.prepare(`
       SELECT n.*, m.name as from_name, t.title as task_title
       FROM notifications n
       LEFT JOIN members m ON n.from_member_id = m.id
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       LIMIT 50
     `).all(Number(memberId));
   } else {
-    notifications = db.prepare(`
+    notifications = await db.prepare(`
       SELECT n.*, m.name as from_name, t.title as task_title
       FROM notifications n
       LEFT JOIN members m ON n.from_member_id = m.id
@@ -32,12 +32,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const db = getDb();
+  const db = await getDb();
   const body = await req.json();
   if (body.markAllRead && body.memberId) {
-    db.prepare('UPDATE notifications SET read = 1 WHERE to_member_id = ?').run(body.memberId);
+    await db.prepare('UPDATE notifications SET read = 1 WHERE to_member_id = ?').run(body.memberId);
   } else if (body.id) {
-    db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(body.id);
+    await db.prepare('UPDATE notifications SET read = 1 WHERE id = ?').run(body.id);
   }
   return NextResponse.json({ success: true });
 }
