@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, FileText, Upload, Plus, X
 } from 'lucide-react';
@@ -19,6 +19,17 @@ export default function Sidebar() {
   const [showImport, setShowImport] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const { projects, members, currentMemberId, setCurrentMemberId, view, setView, isSidebarOpen, setSidebarOpen } = useAppStore();
+
+  useEffect(() => {
+    if (isSidebarOpen) {
+      document.body.classList.add('sidebar-open');
+    } else {
+      document.body.classList.remove('sidebar-open');
+    }
+    return () => {
+      document.body.classList.remove('sidebar-open');
+    };
+  }, [isSidebarOpen]);
 
   const handleNavClick = (action: () => void) => {
     action();
@@ -42,7 +53,7 @@ export default function Sidebar() {
       />
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <nav className="sidebar-nav">
-          <div className="show-mobile" style={{ padding: '4px 8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="sidebar-mobile-header">
             <button className="btn-icon" onClick={() => setSidebarOpen(false)}>
               <X size={20} />
             </button>

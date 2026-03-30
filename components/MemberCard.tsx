@@ -116,10 +116,12 @@ function MemberTaskPanel({ member, avatarIndex, onClose }: { member: Member; ava
 
   const confirmDeleteMember = async () => {
     try {
-      await fetch(`/api/members/${member.id}`, { method: 'DELETE' });
-      fetchAll();
+      const res = await fetch(`/api/members/${member.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      await fetchAll();
       onClose();
-      if (currentMemberId === member.id) {
+      // If we deleted ourselves, backend clears session cookie; force redirect.
+      if (data.loggedOut || currentMemberId === member.id) {
         window.location.href = '/login';
       }
     } catch (e) {

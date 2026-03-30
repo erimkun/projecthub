@@ -117,8 +117,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const res = await fetch('/api/members');
     const members = await res.json();
     set({ members });
-    // Auto-set current member if not set
-    if (!get().currentMemberId && members.length > 0) {
+    // Keep currentMemberId consistent: if deleted, pick a new one (or null).
+    const current = get().currentMemberId;
+    if (current) {
+      if (!members.some((m) => m.id === current)) {
+        set({ currentMemberId: members.length > 0 ? members[0].id : null });
+      }
+    } else if (members.length > 0) {
       set({ currentMemberId: members[0].id });
     }
   },

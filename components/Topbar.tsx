@@ -93,7 +93,7 @@ export default function Topbar() {
       </button>
 
       {/* Logo + week indicator */}
-      <div ref={weekPickerRef} style={{ position: 'relative' }}>
+      <div ref={weekPickerRef} style={{ position: 'relative', flexShrink: 0 }}>
         <button
           type="button"
           onClick={() => setShowWeekPicker((prev) => !prev)}
@@ -168,7 +168,7 @@ export default function Topbar() {
       </div>
 
       {/* View Toggle */}
-      <div className="view-toggle" style={{ marginLeft: 8 }}>
+      <div className="view-toggle" style={{ marginLeft: 0, flexShrink: 0 }}>
         <button
           id="btn-personal-view"
           className={`view-toggle-btn${view === 'personal' ? ' active' : ''}`}
@@ -204,7 +204,7 @@ export default function Topbar() {
         <NotificationBell />
         {username && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 8, borderLeft: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-2)' }}>
+            <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-2)' }}>
               <User size={13} />
               {username}
             </div>
