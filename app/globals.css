@@ -84,6 +84,7 @@ ul, ol { list-style: none; }
 
 .topbar {
   grid-column: 1 / -1;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -92,7 +93,7 @@ ul, ol { list-style: none; }
   height: calc(56px + var(--sat));
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
-  z-index: 100;
+  z-index: 400;
 }
 
 .sidebar {
