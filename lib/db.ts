@@ -187,12 +187,6 @@ async function initSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    INSERT INTO projects (id, name, color)
-    VALUES
-      (1, 'Genel', '#f59e0b'),
-      (2, 'Backend', '#6366f1'),
-      (3, 'Frontend', '#10b981')
-    ON CONFLICT (id) DO NOTHING;
   `);
 }
 

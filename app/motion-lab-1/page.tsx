@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as THREE from 'three';
 import { useAppStore } from '@/lib/store';
 import Topbar from '@/components/Topbar';
@@ -56,6 +56,8 @@ function buildParticleText(
 
 export default function MotionLabOnePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isJustLoggedIn = searchParams.get('login') === '1';
   const { view, fetchAll, triggerAutoRollover, tasks, setCurrentMemberId } = useAppStore();
   const rootRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLElement>(null);
@@ -78,9 +80,29 @@ export default function MotionLabOnePage() {
         }
         if (d.user.memberId) setCurrentMemberId(d.user.memberId);
         fetchAll().then(() => triggerAutoRollover());
+
+        // Auto scroll handling for new logins
+        if (isJustLoggedIn) {
+          setTimeout(() => {
+            if (rootRef.current && appSectionRef.current) {
+              isAutoScrollingRef.current = true;
+              rootRef.current.scrollTo({
+                top: appSectionRef.current.offsetTop,
+                behavior: 'smooth'
+              });
+              // Clean up URL
+              const newUrl = window.location.pathname;
+              window.history.replaceState({}, '', newUrl);
+              
+              setTimeout(() => {
+                isAutoScrollingRef.current = false;
+              }, 1200);
+            }
+          }, 2400); // Wait 2.4s to show off the 3D scene
+        }
       })
       .catch(() => router.push('/login'));
-  }, [fetchAll, router, setCurrentMemberId, triggerAutoRollover]);
+  }, [fetchAll, router, setCurrentMemberId, triggerAutoRollover, isJustLoggedIn]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

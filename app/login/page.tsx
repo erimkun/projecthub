@@ -30,7 +30,7 @@ export default function LoginPage() {
       setError(data.error || 'Bir hata oluştu');
       return;
     }
-    router.push('/');
+    router.push('/?login=1');
     router.refresh();
   };
 
