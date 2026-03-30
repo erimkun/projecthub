@@ -26,8 +26,9 @@ Notes:
 ## Architecture
 
 - App framework: Next.js App Router + React + TypeScript.
-- Backend style: Route Handlers in `app/api/**/route.ts` with SQLite (`better-sqlite3`) through `lib/db.ts`.
-- Frontend state: Client-side Zustand store in `lib/store.ts`; components call store actions, and store actions call `/api/*` endpoints.
+- Backend style: Route Handlers in `app/api/**/route.ts` using `getDb()` from `lib/db.ts`.
+- Database layer: PostgreSQL via `pg` (`Pool`) with `DATABASE_URL`; keep SQL parameterized with `?` placeholders and `db.prepare(...).run/get/all(...)`.
+- Frontend state: Client-side Zustand store in `lib/store.ts`; components call store actions and store actions call `/api/*`.
 - Auth: JWT session cookie `ph_session` via `lib/session.ts` and `/api/auth/*`.
 
 For deeper repository detail, see `CLAUDE.md` (link, do not duplicate).
@@ -42,13 +43,18 @@ For deeper repository detail, see `CLAUDE.md` (link, do not duplicate).
 
 ## Pitfalls
 
-- `lib/db.ts` initializes schema and runs migrations via `ensureColumn(...)`; avoid duplicate table/column initialization logic in route handlers.
-- `data/project-hub.db` is local persistent state; changes may depend on existing data shape.
+- `lib/db.ts` normalizes SQL (`datetime('now')` -> `NOW()`, `?` -> `$1...`) and wraps transactions; avoid bypassing this layer in route handlers.
+- This project is not on "classic" Next.js assumptions; verify behavior against local Next.js docs in `node_modules/next/dist/docs/` before framework-level changes.
 - Week-based behavior (rollover/filtering) depends on utilities in `lib/parser.ts` and rollover logic in `app/api/rollover/route.ts`; preserve those semantics when changing task flows.
 
 ## Key Files
 
 - `lib/store.ts`: central client data flow and API orchestration.
-- `lib/db.ts`: DB schema + connection lifecycle.
+- `lib/db.ts`: DB adapter + schema initialization + transaction helpers.
 - `app/api/tasks/route.ts` and `app/api/tasks/[id]/route.ts`: primary task CRUD/query patterns.
 - `app/api/auth/route.ts` and `lib/session.ts`: auth/session reference.
+
+## Related Docs
+
+- `CLAUDE.md`: deeper project overview and domain behavior.
+- `README.md`: basic Next.js starter instructions (not project-specific architecture).
