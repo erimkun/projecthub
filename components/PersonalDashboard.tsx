@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import TaskCard from './TaskCard';
 import { CheckCircle, Clock, AlertCircle, BookOpen, Plus, X } from 'lucide-react';
@@ -137,6 +137,45 @@ export default function PersonalDashboard() {
     { id: 'rollover', label: 'Taşınan', value: rolloverTasks.length, icon: <span style={{ fontSize: 14 }}>↩</span>, color: 'var(--accent-dim)' },
   ];
 
+  const weeklyActivity = useMemo(() => {
+    const memberTasks = tasks.filter((t) => t.assigned_to === currentMemberId);
+    const daySlots = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      const iso = date.toISOString().slice(0, 10);
+      return {
+        iso,
+        date,
+        createdCount: 0,
+        doneCount: 0,
+        score: 0,
+      };
+    });
+
+    const slotMap = new Map(daySlots.map((slot) => [slot.iso, slot]));
+
+    for (const task of memberTasks) {
+      const createdAt = new Date(task.created_at);
+      if (Number.isNaN(createdAt.getTime())) continue;
+
+      const key = createdAt.toISOString().slice(0, 10);
+      const slot = slotMap.get(key);
+      if (!slot) continue;
+
+      slot.createdCount += 1;
+      if (task.status === 'done') slot.doneCount += 1;
+      slot.score = slot.createdCount + slot.doneCount;
+    }
+
+    const maxScore = Math.max(...daySlots.map((slot) => slot.score), 1);
+
+    return daySlots.map((slot) => ({
+      ...slot,
+      intensity: slot.score === 0 ? 0 : Math.min(4, Math.ceil((slot.score / maxScore) * 4)),
+    }));
+  }, [tasks, currentMemberId]);
+
   return (
     <div className="personal-dashboard-root">
       {/* Header */}
@@ -165,20 +204,28 @@ export default function PersonalDashboard() {
         {projects.map(p => {
            const projectTasks = myTasks.filter(t => t.project_id === p.id);
            if (projectTasks.length === 0) return null;
+           const completedTasks = projectTasks.filter(t => t.status === 'done').length;
+           const progressPercent = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
            return (
               <div
                 key={p.id}
                 className="card"
                 onClick={() => setActiveProjectId(p.id)}
-                style={{ 
+                style={{
                   padding: '10px 16px', cursor: 'pointer', minWidth: 120, flexShrink: 0,
                   background: activeProjectId === p.id ? 'var(--bg-hover)' : 'var(--bg-surface)',
                   border: activeProjectId === p.id ? `1px solid ${p.color}` : '1px solid transparent',
                   borderTop: `3px solid ${p.color}`
                 }}
               >
-                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{p.name}</div>
-                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{projectTasks.length} görev</div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-1)', whiteSpace: 'nowrap' }}>{p.name}</div>
+                    <div style={{ fontSize: 10, color: p.color, fontWeight: 700 }}>{progressPercent}%</div>
+                 </div>
+                 <div style={{ height: 4, background: 'var(--bg-base)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
+                    <div style={{ height: '100%', width: `${progressPercent}%`, background: p.color, borderRadius: 99, transition: 'width 0.5s cubic-bezier(0.22,1,0.36,1)' }} />
+                 </div>
+                 <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{completedTasks}/{projectTasks.length} görev</div>
               </div>
            )
         })}
@@ -210,6 +257,26 @@ export default function PersonalDashboard() {
           </div>
         ))}
       </div>
+
+      <section className="card activity-heatmap-card" style={{ marginBottom: 24 }}>
+        <div className="section-header" style={{ marginBottom: 14 }}>
+          <h2 style={{ fontSize: 14 }}>Haftalık Aktivite Isı Haritası</h2>
+          <span className="status-badge status-pending">Son 7 gün</span>
+        </div>
+        <div className="activity-heatmap-grid" role="img" aria-label="Son 7 gün aktivite yoğunluğu">
+          {weeklyActivity.map((day) => (
+            <div key={day.iso} className="activity-heatmap-day-wrap">
+              <div
+                className={`activity-heatmap-day intensity-${day.intensity}`}
+                title={`${day.date.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'short' })}: ${day.score} aktivite`}
+              >
+                <strong>{day.score}</strong>
+              </div>
+              <span>{day.date.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Tasks View (Full Width Now) */}
@@ -262,12 +329,17 @@ export default function PersonalDashboard() {
             {showQuickAdd && <QuickAddTask onClose={() => setShowQuickAdd(false)} />}
 
             {displayPendingTasks.length === 0 && displayDoneTasks.length === 0 && !showQuickAdd ? (
-              <div className="empty-state">
-                <div className="empty-icon">🎯</div>
-                <p className="text-muted" style={{ fontSize: 13 }}>Henüz görev yok</p>
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowQuickAdd(true)}>
-                  <Plus size={13} /> Hızlı Görev Ekle
-                </button>
+              <div className="empty-state-enhanced">
+                <div className="empty-illustration">
+                  <span style={{ fontSize: 48 }}>🎯</span>
+                </div>
+                <h3>Henüz görev eklenmemiş</h3>
+                <p>Bu hafta için ilk görevini oluştur ve üretkenliğe başla</p>
+                <div className="empty-cta">
+                  <button className="btn btn-primary" onClick={() => setShowQuickAdd(true)}>
+                    <Plus size={16} /> İlk Görevini Ekle
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="task-list">

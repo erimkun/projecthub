@@ -61,7 +61,8 @@ export default function Sidebar() {
 
           <div className="nav-section-label">Genel</div>
           {navItems.map((item) => (
-            <div
+            <button
+              type="button"
               key={item.id}
               id={`nav-${item.id}`}
               className={`nav-item${actualActive === item.id && !selectedProjectId ? ' active' : ''}`}
@@ -69,7 +70,7 @@ export default function Sidebar() {
             >
               {item.icon}
               <span>{item.label}</span>
-            </div>
+            </button>
           ))}
 
           <div className="divider" />
@@ -82,7 +83,8 @@ export default function Sidebar() {
           </div>
           <div>
             {projects.map((p) => (
-              <div
+              <button
+                type="button"
                 key={p.id}
                 className={`nav-item${selectedProjectId === p.id ? ' active' : ''}`}
                 onClick={() => {
@@ -94,7 +96,7 @@ export default function Sidebar() {
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
                 <span className="truncate">{p.name}</span>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -108,7 +110,8 @@ export default function Sidebar() {
           </div>
           <div>
             {members.map((m) => (
-              <div
+              <button
+                type="button"
                 key={m.id}
                 className={`nav-item${activeSection === 'dashboard' && currentMemberId === m.id ? ' active' : ''}`}
                 onClick={() => {
@@ -121,7 +124,7 @@ export default function Sidebar() {
               >
                 <img src={m.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random`} style={{ width: 16, height: 16, borderRadius: '50%' }} alt="" />
                 <span className="truncate">{m.name}</span>
-              </div>
+              </button>
             ))}
           </div>
         </nav>

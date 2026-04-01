@@ -11,6 +11,7 @@ import NotesEditor from '@/components/NotesEditor';
 import TeamRadar from '@/components/TeamRadar';
 import SOSPanel from '@/components/SOSPanel';
 import RolloverBanner from '@/components/RolloverBanner';
+import MobileBottomNav from '@/components/MobileBottomNav';
 import styles from './page.module.css';
 
 function rand(min: number, max: number) {
@@ -1172,6 +1173,7 @@ function MotionLabOneContent() {
               {view === 'team' && <TeamRadar />}
               {view === 'notes' && <NotesEditor />}
             </main>
+            <MobileBottomNav />
             {sosTasks.length > 0 && <SOSPanel sosTasks={sosTasks} />}
             <RolloverBanner />
           </div>
