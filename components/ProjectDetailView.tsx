@@ -95,7 +95,37 @@ export default function ProjectDetailView({ projectId, onClose }: { projectId: n
 
   if (loading) {
     return (
-      <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)' }}>Yükleniyor...</div>
+      <div style={{ padding: 28 }}>
+        {/* Skeleton header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+          <div className="skeleton" style={{ width: 14, height: 14, borderRadius: '50%' }} />
+          <div className="skeleton" style={{ width: 180, height: 24, borderRadius: 4 }} />
+        </div>
+        {/* Skeleton stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 28 }}>
+          <div className="skeleton-stat">
+            <div className="skeleton-line short" />
+            <div className="skeleton-line medium" style={{ height: 28 }} />
+          </div>
+          <div className="skeleton-stat">
+            <div className="skeleton-line short" />
+            <div className="skeleton-line medium" style={{ height: 28 }} />
+          </div>
+          <div className="skeleton-stat">
+            <div className="skeleton-line short" />
+            <div className="skeleton-line medium" style={{ height: 28 }} />
+          </div>
+        </div>
+        {/* Skeleton progress bar */}
+        <div className="skeleton-line full" style={{ height: 5, marginBottom: 28 }} />
+        {/* Skeleton weekly breakdown */}
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="skeleton-card" style={{ marginBottom: 10 }}>
+            <div className="skeleton-line medium" />
+            <div className="skeleton-line long" />
+          </div>
+        ))}
+      </div>
     );
   }
   if (!data || !data.project) return null;

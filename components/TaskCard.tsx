@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, AlertTriangle, Heart, Trash2, Copy, Calendar } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Check, AlertTriangle, Heart, Trash2, Copy, Calendar, MoreHorizontal } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import type { Task } from '@/lib/types';
 
@@ -11,6 +11,8 @@ interface TaskCardProps {
 
 export default function TaskCard({ task }: TaskCardProps) {
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const { updateTask, deleteTask, createTask, currentMemberId, members, selectedWeek, selectedYear } = useAppStore();
 
   const isDone = task.status === 'done';
@@ -26,6 +28,14 @@ export default function TaskCard({ task }: TaskCardProps) {
   };
 
   const toggleDone = async () => {
+    if (!isDone) {
+      setIsCompleting(true);
+      cardRef.current?.classList.add('complete-animation');
+      setTimeout(() => {
+        cardRef.current?.classList.remove('complete-animation');
+        setIsCompleting(false);
+      }, 400);
+    }
     await updateTask(task.id, { status: isDone ? 'pending' : 'done' });
   };
 
@@ -100,11 +110,60 @@ export default function TaskCard({ task }: TaskCardProps) {
   return (
     <>
       <div
-        className={`task-card status-${task.status}${task.is_rollover ? ' is-rollover' : ''}`}
+        ref={cardRef}
+        className={`task-card status-${task.status}${task.is_rollover ? ' is-rollover' : ''} ${isCompleting ? ' complete-animation' : ''}`}
         id={`task-${task.id}`}
         onContextMenu={handleContextMenu}
       >
         <div className="task-week-chip">H{task.week_number} · {task.year}</div>
+
+        {/* Quick Actions Hover Overlay */}
+        <div className="quick-actions">
+          {!isDone && task.assigned_to === currentMemberId && (
+            <button
+              className="sos"
+              onClick={(e) => { e.stopPropagation(); triggerSOS(); }}
+              title="SOS — Yardım İste"
+            >
+              <AlertTriangle size={14} />
+            </button>
+          )}
+          {isSOS && task.assigned_to !== currentMemberId && (
+            <button
+              className="help"
+              onClick={(e) => { e.stopPropagation(); offerHelp(); }}
+              title="Yardım Et"
+            >
+              <Heart size={14} />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDuplicate(); }}
+            title="Kopyasını Oluştur"
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleDone(); }}
+            title={isDone ? 'Geri al' : 'Tamamlandı'}
+            style={{ color: isDone ? 'var(--accent-help)' : 'inherit' }}
+          >
+            <Check size={14} />
+          </button>
+          <button
+            className="delete"
+            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+            title="Sil"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleContextMenu(e as any); }}
+            title="Daha fazla"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
 
         {/* Checkbox */}
         <div
@@ -141,7 +200,7 @@ export default function TaskCard({ task }: TaskCardProps) {
           </div>
         </div>
 
-        {/* Quick actions (inline) */}
+        {/* Quick actions (inline - visible always for SOS/help) */}
         <div className="task-actions">
           {!isDone && !isSOS && task.assigned_to === currentMemberId && (
             <button
@@ -163,9 +222,6 @@ export default function TaskCard({ task }: TaskCardProps) {
               <Heart size={11} /> Yardım Et
             </button>
           )}
-          <span style={{ fontSize: 10, color: 'var(--text-3)', userSelect: 'none' }} title="Sağ tıkla — daha fazla seçenek">
-            ···
-          </span>
         </div>
       </div>
 
