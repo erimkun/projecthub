@@ -169,7 +169,7 @@ export default function Topbar() {
       </div>
 
       {/* View Toggle */}
-      <div className="view-toggle topbar-view-toggle" style={{ marginLeft: 0, flexShrink: 0 }}>
+      <div className="view-toggle topbar-view-toggle hide-mobile" style={{ marginLeft: 0, flexShrink: 0 }}>
         <button
           id="btn-personal-view"
           className={`view-toggle-btn${view === 'personal' ? ' active' : ''}`}
