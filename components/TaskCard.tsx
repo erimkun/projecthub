@@ -17,6 +17,8 @@ export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCard
   const [isCompleting, setIsCompleting] = useState(false);
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
   const { tasks, updateTask, deleteTask, createTask, currentMemberId, members, selectedWeek, selectedYear } = useAppStore();
 
@@ -30,6 +32,16 @@ export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCard
   const childTasks = tasks
     .filter((candidate) => candidate.parent_task_id === task.id && !ancestorIds.includes(candidate.id))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const createdLabel = (() => {
+    const date = new Date(task.created_at);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  })();
+
+  const continuityLabel = (() => {
+    if (!task.source_week_number || !task.source_year) return null;
+    return `H${task.source_week_number}/${task.source_year} haftasından beri`;
+  })();
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -104,11 +116,15 @@ export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCard
       closeCtx();
       return;
     }
-
-    const reason = window.prompt('Blokaj sebebi nedir?', task.blocked_reason || '');
-    if (reason === null) return;
-    await updateTask(task.id, { status: 'blocked', blocked_reason: reason.trim() || 'Belirtilmedi' });
+    setBlockReason(task.blocked_reason || '');
+    setShowBlockModal(true);
     closeCtx();
+  };
+
+  const submitBlockedReason = async () => {
+    await updateTask(task.id, { status: 'blocked', blocked_reason: blockReason.trim() || 'Belirtilmedi' });
+    setShowBlockModal(false);
+    setBlockReason('');
   };
 
   const handleCreateSubtask = async () => {
@@ -234,8 +250,12 @@ export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCard
             {task.assigned_name && (
               <span style={{ fontSize: 11, color: 'var(--text-3)' }}>@{task.assigned_name}</span>
             )}
+            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Oluşturma: {createdLabel}</span>
             {task.is_rollover === 1 && task.source_week_number && task.source_year && (
-              <span className="rollover-badge">↩ Geçen Hafta: H{task.source_week_number}</span>
+              <span className="rollover-badge">↩ Bu haftaya taşındı</span>
+            )}
+            {continuityLabel && (
+              <span className="status-badge status-pending">{continuityLabel}</span>
             )}
             {task.pulled_into_current_week === 1 && (
               <span className="rollover-badge pulled">Bu Haftaya Alındı</span>
@@ -417,6 +437,31 @@ export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCard
               ancestorIds={[...ancestorIds, task.id]}
             />
           ))}
+        </div>
+      )}
+
+      {showBlockModal && (
+        <div className="overlay" onClick={() => setShowBlockModal(false)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ marginBottom: 12 }}>
+              <h2 style={{ fontSize: 16 }}>Görevi Bloke Olarak İşaretle</h2>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+              Bloke sebebini yaz. Bu bilgi görev kartında görünür ve ekip tarafından takip edilir.
+            </p>
+            <textarea
+              className="input"
+              autoFocus
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="Örn: API erişimi bekleniyor / dış bağımlılık tamamlanmadı"
+              style={{ minHeight: 96 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button className="btn btn-ghost" onClick={() => setShowBlockModal(false)}>İptal</button>
+              <button className="btn btn-primary" onClick={submitBlockedReason}>Blokeye Al</button>
+            </div>
+          </div>
         </div>
       )}
     </>

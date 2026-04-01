@@ -15,8 +15,10 @@ import {
   YAxis,
 } from 'recharts';
 import { useAppStore } from '@/lib/store';
+import { getWeekNumber } from '@/lib/parser';
 
 type DashboardResponse = {
+  message?: string;
   filters?: {
     memberId: number | null;
     projectId: number | null;
@@ -99,6 +101,22 @@ export default function ManagementInsights() {
   const [selectedMemberName, setSelectedMemberName] = useState<string | null>(null);
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
+  const currentYear = new Date().getFullYear();
+
+  const yearOptions = useMemo(() => Array.from({ length: 7 }, (_, index) => currentYear - 3 + index), [currentYear]);
+
+  const startParts = useMemo(() => weekInputToParts(startWeekInput), [startWeekInput]);
+  const endParts = useMemo(() => weekInputToParts(endWeekInput), [endWeekInput]);
+
+  const getWeeksInYear = (year: number) => getWeekNumber(new Date(Date.UTC(year, 11, 28))).week;
+  const startWeeks = useMemo(() => {
+    const year = startParts?.year || currentYear;
+    return Array.from({ length: getWeeksInYear(year) }, (_, index) => index + 1);
+  }, [currentYear, startParts]);
+  const endWeeks = useMemo(() => {
+    const year = endParts?.year || currentYear;
+    return Array.from({ length: getWeeksInYear(year) }, (_, index) => index + 1);
+  }, [currentYear, endParts]);
 
   useEffect(() => {
     let mounted = true;
@@ -203,23 +221,75 @@ export default function ManagementInsights() {
           ))}
         </select>
 
-        <input
-          className="input"
-          type="week"
-          value={startWeekInput}
-          onChange={(e) => setStartWeekInput(e.target.value)}
-          style={{ fontSize: 12, padding: '6px 8px' }}
-          title="Başlangıç haftası"
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <select
+            className="input"
+            value={startParts?.year || ''}
+            onChange={(e) => {
+              const year = Number(e.target.value);
+              const week = Math.min(startParts?.week || 1, getWeeksInYear(year));
+              setStartWeekInput(`${year}-W${String(week).padStart(2, '0')}`);
+            }}
+            style={{ fontSize: 12, padding: '6px 8px' }}
+            title="Başlangıç yılı"
+          >
+            <option value="">Başlangıç Yıl</option>
+            {yearOptions.map((year) => (
+              <option key={`start-y-${year}`} value={year}>{year}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={startParts?.week || ''}
+            onChange={(e) => {
+              const week = Number(e.target.value);
+              const year = startParts?.year || currentYear;
+              setStartWeekInput(`${year}-W${String(week).padStart(2, '0')}`);
+            }}
+            style={{ fontSize: 12, padding: '6px 8px' }}
+            title="Başlangıç haftası"
+          >
+            <option value="">Başlangıç Hafta</option>
+            {startWeeks.map((week) => (
+              <option key={`start-w-${week}`} value={week}>H{week}</option>
+            ))}
+          </select>
+        </div>
 
-        <input
-          className="input"
-          type="week"
-          value={endWeekInput}
-          onChange={(e) => setEndWeekInput(e.target.value)}
-          style={{ fontSize: 12, padding: '6px 8px' }}
-          title="Bitiş haftası"
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <select
+            className="input"
+            value={endParts?.year || ''}
+            onChange={(e) => {
+              const year = Number(e.target.value);
+              const week = Math.min(endParts?.week || 1, getWeeksInYear(year));
+              setEndWeekInput(`${year}-W${String(week).padStart(2, '0')}`);
+            }}
+            style={{ fontSize: 12, padding: '6px 8px' }}
+            title="Bitiş yılı"
+          >
+            <option value="">Bitiş Yıl</option>
+            {yearOptions.map((year) => (
+              <option key={`end-y-${year}`} value={year}>{year}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={endParts?.week || ''}
+            onChange={(e) => {
+              const week = Number(e.target.value);
+              const year = endParts?.year || currentYear;
+              setEndWeekInput(`${year}-W${String(week).padStart(2, '0')}`);
+            }}
+            style={{ fontSize: 12, padding: '6px 8px' }}
+            title="Bitiş haftası"
+          >
+            <option value="">Bitiş Hafta</option>
+            {endWeeks.map((week) => (
+              <option key={`end-w-${week}`} value={week}>H{week}</option>
+            ))}
+          </select>
+        </div>
 
         <label className="management-compare-toggle">
           <input
@@ -250,6 +320,12 @@ export default function ManagementInsights() {
 
       {!loading && !error && data && (
         <>
+          {data.message && data.taskMetrics.total === 0 && (
+            <div className="empty-state" style={{ padding: '12px 0 18px' }}>
+              <p style={{ color: 'var(--text-3)', fontSize: 13 }}>{data.message}</p>
+            </div>
+          )}
+
           <div className="management-kpi-grid">
             <div className="management-kpi-card">
               <div className="management-kpi-label"><Activity size={14} /> Toplam</div>

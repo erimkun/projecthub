@@ -6,7 +6,10 @@ import { logAudit } from '@/lib/audit';
 
 type ActionInput = {
   text: string;
-  assigned_to?: number | null;
+  assigned_tos?: number[];
+  project_id?: number | null;
+  new_project_name?: string;
+  new_project_color?: string;
   due_week_number?: number | null;
   due_year?: number | null;
   due_date?: string | null;
@@ -33,7 +36,6 @@ export async function GET(req: NextRequest) {
       meeting: {
         week_number: week,
         year,
-        criticals: '',
         decisions: '',
         summary: '',
       },
@@ -42,9 +44,8 @@ export async function GET(req: NextRequest) {
   }
 
   const actions = await db.prepare(`
-    SELECT ma.*, m.name as assigned_name
+    SELECT ma.*
     FROM meeting_actions ma
-    LEFT JOIN members m ON ma.assigned_to = m.id
     WHERE ma.meeting_id = ?
     ORDER BY ma.id ASC
   `).all(Number(meeting.id));
@@ -61,10 +62,8 @@ export async function POST(req: NextRequest) {
   const current = getWeekNumber();
   const weekNumber = Number(body.week_number || current.week);
   const year = Number(body.year || current.year);
-  const criticals = asText(body.criticals);
   const decisions = asText(body.decisions);
-  const projectId = Number(body.project_id || 0) || null;
-  const autoCreateTasks = body.autoCreateTasks !== false;
+  const decisionsHtml = asText(body.decisionsHtml || body.decisions);
   const actionsInput = Array.isArray(body.actions) ? body.actions as ActionInput[] : [];
 
   const actor = await db.prepare('SELECT username FROM users WHERE id = ?').get(session.userId) as { username: string } | undefined;
@@ -80,100 +79,164 @@ export async function POST(req: NextRequest) {
     if (existing) {
       meetingId = existing.id;
       await txDb.prepare(
-        "UPDATE meetings SET criticals = ?, decisions = ?, updated_at = NOW() WHERE id = ?"
-      ).run(criticals, decisions, meetingId);
+        "UPDATE meetings SET criticals = '', decisions = ?, updated_at = NOW() WHERE id = ?"
+      ).run(decisionsHtml || decisions, meetingId);
       await txDb.prepare('DELETE FROM meeting_actions WHERE meeting_id = ?').run(meetingId);
     } else {
       const insertMeeting = await txDb.prepare(
         'INSERT INTO meetings (week_number, year, criticals, decisions, created_by_user_id) VALUES (?, ?, ?, ?, ?)'
-      ).run(weekNumber, year, criticals, decisions, session.userId);
+      ).run(weekNumber, year, '', decisionsHtml || decisions, session.userId);
       meetingId = Number(insertMeeting.lastInsertRowid);
     }
 
     const actionRows: Array<{
       text: string;
-      assignedTo: number | null;
-      assignedName: string;
+      assignedIds: number[];
+      assignedNames: string[];
+      projectId: number | null;
+      projectName: string;
       dueWeek: number;
       dueYear: number;
       dueDate: string;
-      taskId: number | null;
+      taskIds: number[];
     }> = [];
+
+    const createdProjectByKey = new Map<string, { id: number; name: string }>();
 
     for (const action of actionsInput) {
       const text = asText(action.text);
       if (!text) continue;
 
-      const assignedTo = Number(action.assigned_to || 0) || null;
+      const assignedIds = Array.isArray(action.assigned_tos)
+        ? action.assigned_tos.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+        : [];
       const dueWeek = Number(action.due_week_number || weekNumber) || weekNumber;
       const dueYear = Number(action.due_year || year) || year;
       const dueDate = asText(action.due_date);
+      let effectiveProjectId = Number(action.project_id || 0) || null;
+      let effectiveProjectName = 'Projesiz';
 
-      let assignedName = 'Atanmadı';
-      if (assignedTo) {
-        const member = await txDb.prepare('SELECT name FROM members WHERE id = ?').get(assignedTo) as { name: string } | undefined;
-        if (member?.name) assignedName = member.name;
+      const newProjectName = asText(action.new_project_name);
+      const newProjectColor = asText(action.new_project_color) || '#f59e0b';
+      if (newProjectName) {
+        const key = `${newProjectName.toLowerCase()}::${newProjectColor.toLowerCase()}`;
+        const cached = createdProjectByKey.get(key);
+        if (cached) {
+          effectiveProjectId = cached.id;
+          effectiveProjectName = cached.name;
+        } else {
+          const createdProject = await txDb.prepare(
+            'INSERT INTO projects (name, color) VALUES (?, ?)'
+          ).run(newProjectName, newProjectColor);
+          effectiveProjectId = Number(createdProject.lastInsertRowid);
+          effectiveProjectName = newProjectName;
+          createdProjectByKey.set(key, { id: effectiveProjectId, name: effectiveProjectName });
+        }
+      } else if (effectiveProjectId) {
+        const project = await txDb.prepare('SELECT name FROM projects WHERE id = ?').get(effectiveProjectId) as { name: string } | undefined;
+        if (project?.name) effectiveProjectName = project.name;
       }
 
-      let taskId: number | null = null;
-      if (autoCreateTasks) {
+      const assignedNames: string[] = [];
+      for (const memberId of assignedIds) {
+        const member = await txDb.prepare('SELECT name FROM members WHERE id = ?').get(memberId) as { name: string } | undefined;
+        if (member?.name) assignedNames.push(member.name);
+      }
+
+      if (assignedNames.length === 0) assignedNames.push('Atanmadı');
+
+      const taskIds: number[] = [];
+      if (assignedIds.length > 0) {
+        for (const assignedId of assignedIds) {
+          const taskResult = await txDb.prepare(
+            'INSERT INTO tasks (title, body, status, project_id, assigned_to, week_number, year, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(
+            text,
+            `Toplantı aksiyonu (${weekNumber}/${year})`,
+            'pending',
+            effectiveProjectId,
+            assignedId,
+            dueWeek,
+            dueYear,
+            'toplanti-aksiyon'
+          );
+          taskIds.push(Number(taskResult.lastInsertRowid));
+        }
+      } else {
         const taskResult = await txDb.prepare(
           'INSERT INTO tasks (title, body, status, project_id, assigned_to, week_number, year, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         ).run(
           text,
           `Toplantı aksiyonu (${weekNumber}/${year})`,
           'pending',
-          projectId,
-          assignedTo,
+          effectiveProjectId,
+          null,
           dueWeek,
           dueYear,
           'toplanti-aksiyon'
         );
-        taskId = Number(taskResult.lastInsertRowid);
+        taskIds.push(Number(taskResult.lastInsertRowid));
       }
 
       await txDb.prepare(
-        'INSERT INTO meeting_actions (meeting_id, action_text, assigned_to, due_week_number, due_year, due_date, task_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).run(meetingId, text, assignedTo, dueWeek, dueYear, dueDate || null, taskId);
+        'INSERT INTO meeting_actions (meeting_id, action_text, assigned_to, assigned_member_ids, project_id, due_week_number, due_year, due_date, task_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        meetingId,
+        text,
+        assignedIds[0] || null,
+        assignedIds.join(','),
+        effectiveProjectId,
+        dueWeek,
+        dueYear,
+        dueDate || null,
+        taskIds[0] || null
+      );
 
       actionRows.push({
         text,
-        assignedTo,
-        assignedName,
+        assignedIds,
+        assignedNames,
+        projectId: effectiveProjectId,
+        projectName: effectiveProjectName,
         dueWeek,
         dueYear,
         dueDate,
-        taskId,
+        taskIds,
       });
     }
 
     const summaryLines = [
       `Haftalık Toplantı Özeti - H${weekNumber} ${year}`,
       '',
-      'Kritikler:',
-      criticals || '-',
-      '',
       'Kararlar:',
-      decisions || '-',
+      asText((decisionsHtml || decisions).replace(/<[^>]+>/g, ' ')) || '-',
       '',
       'Aksiyonlar:',
       actionRows.length === 0
         ? '- Aksiyon yok'
-        : actionRows.map((row, index) => `${index + 1}. ${row.text} | Sorumlu: ${row.assignedName} | Termin: H${row.dueWeek}/${row.dueYear}${row.dueDate ? ` (${row.dueDate})` : ''}`).join('\n'),
+        : actionRows.map((row, index) => `${index + 1}. ${row.text} | Sorumlu: ${row.assignedNames.join(', ')} | Proje: ${row.projectName} | Termin: H${row.dueWeek}/${row.dueYear}${row.dueDate ? ` (${row.dueDate})` : ''}`).join('\n'),
       '',
       `Toplantı kaydı: ${actor?.username || 'kullanıcı'}`,
     ];
 
     const summary = summaryLines.join('\n');
-    const summaryHtml = `<pre style="white-space:pre-wrap; font-family:var(--font-body);">${summary}</pre>`;
+    const summaryHtml = `
+      <div class="meeting-summary">
+        <h3>Haftalık Toplantı Özeti - H${weekNumber}/${year}</h3>
+        <div><strong>Kararlar</strong></div>
+        <div>${decisionsHtml || decisions || '-'}</div>
+        <div style="margin-top:12px;"><strong>Aksiyonlar</strong></div>
+        <pre style="white-space:pre-wrap; font-family:var(--font-body);">${actionRows.length === 0 ? '- Aksiyon yok' : actionRows.map((row, index) => `${index + 1}. ${row.text} | Sorumlu: ${row.assignedNames.join(', ')} | Proje: ${row.projectName} | Termin: H${row.dueWeek}/${row.dueYear}${row.dueDate ? ` (${row.dueDate})` : ''}`).join('\n')}</pre>
+      </div>
+    `;
 
     if (noteId) {
       await txDb.prepare("UPDATE notes SET title = ?, content = ?, updated_at = NOW() WHERE id = ?")
-        .run(`Toplantı Özeti - H${weekNumber}/${year}`, summaryHtml, noteId);
+        .run(`Toplantı Özeti - H${weekNumber}/${year}`, summaryHtml.trim(), noteId);
     } else {
       const note = await txDb.prepare(
         'INSERT INTO notes (title, content, project_id) VALUES (?, ?, ?)'
-      ).run(`Toplantı Özeti - H${weekNumber}/${year}`, summaryHtml, projectId);
+      ).run(`Toplantı Özeti - H${weekNumber}/${year}`, summaryHtml.trim(), null);
       noteId = Number(note.lastInsertRowid);
     }
 

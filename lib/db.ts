@@ -213,6 +213,8 @@ async function initSchema() {
       meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
       action_text TEXT NOT NULL,
       assigned_to INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      assigned_member_ids TEXT NOT NULL DEFAULT '',
+      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
       due_week_number INTEGER,
       due_year INTEGER,
       due_date TEXT,
@@ -250,6 +252,12 @@ async function initSchema() {
 
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+    ALTER TABLE meeting_actions
+    ADD COLUMN IF NOT EXISTS assigned_member_ids TEXT NOT NULL DEFAULT '';
+
+    ALTER TABLE meeting_actions
+    ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
 
     CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);

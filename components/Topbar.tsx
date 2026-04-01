@@ -43,10 +43,15 @@ export default function Topbar() {
   const monday = useMemo(() => getWeekMonday(selectedWeek, selectedYear), [selectedWeek, selectedYear]);
   const mondayStr = monday.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
 
-  const weekInputValue = useMemo(
-    () => `${selectedYear}-W${String(selectedWeek).padStart(2, '0')}`,
-    [selectedWeek, selectedYear]
-  );
+  const weekOptions = useMemo(() => {
+    const weeksInSelectedYear = getWeekNumber(new Date(Date.UTC(selectedYear, 11, 28))).week;
+    return Array.from({ length: weeksInSelectedYear }, (_, index) => index + 1);
+  }, [selectedYear]);
+
+  const yearOptions = useMemo(() => {
+    const base = currentYear;
+    return Array.from({ length: 7 }, (_, index) => base - 3 + index);
+  }, [currentYear]);
 
   const shiftWeek = (delta: number) => {
     let nextWeek = selectedWeek + delta;
@@ -65,14 +70,6 @@ export default function Topbar() {
     }
 
     setSelectedWeekYear(nextWeek, nextYear);
-  };
-
-  const handleWeekInputChange = (value: string) => {
-    const match = value.match(/^(\d{4})-W(\d{2})$/);
-    if (!match) return;
-    const parsedYear = Number(match[1]);
-    const parsedWeek = Number(match[2]);
-    setSelectedWeekYear(parsedWeek, parsedYear);
   };
 
   const handleLogout = async () => {
@@ -136,13 +133,30 @@ export default function Topbar() {
               <button className="btn-icon" onClick={() => shiftWeek(-1)} title="Önceki hafta">
                 <ChevronLeft size={14} />
               </button>
-              <input
+              <select
                 className="input"
-                type="week"
-                value={weekInputValue}
-                onChange={(e) => handleWeekInputChange(e.target.value)}
-                style={{ fontSize: 12, padding: '6px 10px', textTransform: 'uppercase' }}
-              />
+                value={selectedYear}
+                onChange={(e) => {
+                  const nextYear = Number(e.target.value);
+                  const maxWeek = getWeekNumber(new Date(Date.UTC(nextYear, 11, 28))).week;
+                  setSelectedWeekYear(Math.min(selectedWeek, maxWeek), nextYear);
+                }}
+                style={{ width: 88, fontSize: 12, padding: '6px 8px' }}
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <select
+                className="input"
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeekYear(Number(e.target.value), selectedYear)}
+                style={{ width: 72, fontSize: 12, padding: '6px 8px' }}
+              >
+                {weekOptions.map((week) => (
+                  <option key={week} value={week}>H{week}</option>
+                ))}
+              </select>
               <button className="btn-icon" onClick={() => shiftWeek(1)} title="Sonraki hafta">
                 <ChevronRight size={14} />
               </button>

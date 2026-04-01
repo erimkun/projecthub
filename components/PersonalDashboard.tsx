@@ -74,7 +74,7 @@ function QuickAddTask({ onClose }: { onClose: () => void }) {
 export default function PersonalDashboard() {
   const { tasks, currentMemberId, members, projects, notes, setActiveNoteId, setView, selectedWeek, selectedYear } = useAppStore();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'blocked' | 'sos' | 'done' | 'rollover'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'blocked' | 'sos' | 'done'>('all');
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
 
   const [notesWidth, setNotesWidth] = useState(480);
@@ -115,7 +115,6 @@ export default function PersonalDashboard() {
   const blockedTasks = myTasks.filter((t) => t.status === 'blocked');
   const sosTasks = myTasks.filter((t) => t.status === 'sos');
   const doneTasks = myTasks.filter((t) => t.status === 'done');
-  const rolloverTasks = myTasks.filter((t) => t.is_rollover === 1);
 
   // Filtered task arrays for display
   const filteredTasks = myTasks.filter(t => {
@@ -124,15 +123,13 @@ export default function PersonalDashboard() {
       if (activeFilter === 'blocked' && t.status !== 'blocked') return false;
      if (activeFilter === 'sos' && t.status !== 'sos') return false;
      if (activeFilter === 'done' && t.status !== 'done') return false;
-     if (activeFilter === 'rollover' && t.is_rollover !== 1) return false;
      return true;
   });
 
   const displayPendingTasks = (activeFilter === 'all' || activeFilter === 'pending') ? filteredTasks.filter((t) => t.status === 'pending' || t.status === 'helping') : [];
-    const displayBlockedTasks = (activeFilter === 'all' || activeFilter === 'blocked') ? filteredTasks.filter((t) => t.status === 'blocked') : [];
+  const displayBlockedTasks = (activeFilter === 'all' || activeFilter === 'blocked') ? filteredTasks.filter((t) => t.status === 'blocked') : [];
   const displaySosTasks = (activeFilter === 'all' || activeFilter === 'sos') ? filteredTasks.filter((t) => t.status === 'sos') : [];
   const displayDoneTasks = (activeFilter === 'all' || activeFilter === 'done') ? filteredTasks.filter((t) => t.status === 'done') : [];
-  const displayRolloverTasks = (activeFilter === 'all' || activeFilter === 'rollover') ? filteredTasks.filter((t) => t.is_rollover === 1) : [];
 
   const getVisibleRootTasks = useCallback((list: typeof filteredTasks) => {
     const idSet = new Set(list.map((task) => task.id));
@@ -143,30 +140,35 @@ export default function PersonalDashboard() {
   const visibleBlockedTasks = getVisibleRootTasks(displayBlockedTasks);
   const visibleSosTasks = getVisibleRootTasks(displaySosTasks);
   const visibleDoneTasks = getVisibleRootTasks(displayDoneTasks);
-  const visibleRolloverTasks = getVisibleRootTasks(displayRolloverTasks);
-  const statCards: { id: 'pending' | 'blocked' | 'sos' | 'done' | 'rollover'; label: string; value: number; icon: React.ReactNode; color: string }[] = [
+  const statCards: { id: 'pending' | 'blocked' | 'sos' | 'done'; label: string; value: number; icon: React.ReactNode; color: string }[] = [
     { id: 'pending', label: 'Bekleyen', value: pendingTasks.length, icon: <Clock size={16} />, color: 'var(--text-2)' },
     { id: 'blocked', label: 'Bloke', value: blockedTasks.length, icon: <AlertCircle size={16} />, color: 'var(--accent-sos)' },
     { id: 'sos', label: 'SOS', value: sosTasks.length, icon: <AlertCircle size={16} />, color: 'var(--accent-sos)' },
     { id: 'done', label: 'Tamamlanan', value: doneTasks.length, icon: <CheckCircle size={16} />, color: 'var(--accent-help)' },
-    { id: 'rollover', label: 'Taşınan', value: rolloverTasks.length, icon: <span style={{ fontSize: 14 }}>↩</span>, color: 'var(--accent-dim)' },
   ];
 
   const weeklyActivity = useMemo(() => {
     const memberTasks = tasks.filter((t) => t.assigned_to === currentMemberId);
-    const daySlots = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() - (6 - index));
-      const iso = date.toISOString().slice(0, 10);
-      return {
-        iso,
-        date,
-        createdCount: 0,
-        doneCount: 0,
-        score: 0,
-      };
-    });
+    const daySlots: Array<{ iso: string; date: Date; createdCount: number; doneCount: number; score: number }> = [];
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+
+    while (daySlots.length < 5) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) {
+        const date = new Date(cursor);
+        daySlots.push({
+          iso: date.toISOString().slice(0, 10),
+          date,
+          createdCount: 0,
+          doneCount: 0,
+          score: 0,
+        });
+      }
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    daySlots.reverse();
 
     const slotMap = new Map(daySlots.map((slot) => [slot.iso, slot]));
 
@@ -296,22 +298,6 @@ export default function PersonalDashboard() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Tasks View (Full Width Now) */}
         <div>
-          {displayRolloverTasks.length > 0 && (
-            <section style={{ marginBottom: 24 }}>
-              <div className="section-header">
-                <h2 style={{ fontSize: 13, color: 'var(--accent-dim)' }}>↩ Geçen Haftadan Taşınanlar</h2>
-                <span className="status-badge status-pending">{displayRolloverTasks.length} görev</span>
-              </div>
-              <div className="task-list">
-                {visibleRolloverTasks.map((t, i) => (
-                  <div key={t.id} className="animate-rollover" style={{ animationDelay: `${i * 60}ms` }}>
-                    <TaskCard task={t} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {displaySosTasks.length > 0 && (
             <section style={{ marginBottom: 24 }}>
               <div className="section-header">
