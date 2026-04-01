@@ -18,20 +18,35 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const res = await fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim(), password, action: mode }),
-    });
-    const data = await res.json();
-    setLoading(false);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password, action: mode }),
+      });
 
-    if (!res.ok) {
-      setError(data.error || 'Bir hata oluştu');
-      return;
+      let data: { error?: string } = {};
+      const text = await res.text();
+      if (text) {
+        try {
+          data = JSON.parse(text) as { error?: string };
+        } catch {
+          // Ignore parsing errors and rely on fallback error text.
+        }
+      }
+
+      if (!res.ok) {
+        setError(data.error || 'Bir hata oluştu');
+        return;
+      }
+
+      router.push('/?login=1');
+      router.refresh();
+    } catch {
+      setError('Sunucuya ulaşılamadı');
+    } finally {
+      setLoading(false);
     }
-    router.push('/?login=1');
-    router.refresh();
   };
 
   return (

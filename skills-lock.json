@@ -6,10 +6,20 @@
       "sourceType": "github",
       "computedHash": "21e7c68d336893e4f2aa8d269854fd5e253c89cfc6dd0e74fa487fe7e96abdeb"
     },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "645b891da1edbae76ab79c7b088d4e73397464f8396edaf773c0e01971ce75d6"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
       "computedHash": "516bd2154eb843a8240e43d5b285229129853114ad7075a5e141e1c08e408c84"
+    },
+    "screenshot": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "08ad9780b78f73c1a9abdcedd443108019ba2264a56b7f287006cbe99c3ed0c1"
     }
   }
 }
