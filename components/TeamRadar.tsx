@@ -1,12 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { MemberSummaryCard, MemberTaskPanel } from './MemberCard';
+import ManagementInsights from './ManagementInsights';
 import type { Member } from '@/lib/types';
 
+type FocusTaskDetail = {
+  taskId: number;
+  memberId?: number | null;
+  weekNumber?: number;
+  year?: number;
+};
+
 export default function TeamRadar() {
-  const { members, tasks, selectedWeek, selectedYear } = useAppStore();
+  const { members, tasks, selectedWeek, selectedYear, setSelectedWeekYear } = useAppStore();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [renamingMember, setRenamingMember] = useState<Member | null>(null);
   const [newName, setNewName] = useState('');
@@ -33,6 +41,36 @@ export default function TeamRadar() {
   };
 
   const sosMember = members.find((m) => m.status === 'sos');
+
+  useEffect(() => {
+    const focusTask = (taskId: number) => {
+      const taskEl = document.getElementById(`task-${taskId}`);
+      if (!taskEl) return;
+      taskEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      taskEl.classList.add('focus-flash');
+      window.setTimeout(() => taskEl.classList.remove('focus-flash'), 1400);
+    };
+
+    const onFocusTask = (event: Event) => {
+      const detail = (event as CustomEvent<FocusTaskDetail>).detail;
+      if (!detail?.taskId) return;
+
+      if (detail.weekNumber && detail.year) {
+        setSelectedWeekYear(detail.weekNumber, detail.year);
+      }
+
+      if (detail.memberId) {
+        setSelectedId(detail.memberId);
+        window.setTimeout(() => focusTask(detail.taskId), 360);
+        return;
+      }
+
+      window.setTimeout(() => focusTask(detail.taskId), 220);
+    };
+
+    window.addEventListener('ph-focus-task', onFocusTask as EventListener);
+    return () => window.removeEventListener('ph-focus-task', onFocusTask as EventListener);
+  }, [setSelectedWeekYear]);
 
   return (
     <div>
@@ -66,6 +104,8 @@ export default function TeamRadar() {
           </div>
         </div>
       )}
+
+      <ManagementInsights />
 
       {members.length === 0 ? (
         <div className="empty-state">

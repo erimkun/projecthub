@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
+import { getSession } from '@/lib/session';
+import { logAudit } from '@/lib/audit';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
   const { id } = await params;
   const body = await req.json();
+  const session = await getSession();
 
   const fields: string[] = [];
   const values: (string | number | null)[] = [];
 
   if (body.status !== undefined) { fields.push('status = ?'); values.push(body.status); }
+  if (body.blocked_reason !== undefined) { fields.push('blocked_reason = ?'); values.push(body.blocked_reason); }
   if (body.title !== undefined) { fields.push('title = ?'); values.push(body.title); }
   if (body.body !== undefined) { fields.push('body = ?'); values.push(body.body); }
+  if (body.parent_task_id !== undefined) { fields.push('parent_task_id = ?'); values.push(body.parent_task_id); }
   if (body.project_id !== undefined) { fields.push('project_id = ?'); values.push(body.project_id); }
   if (body.assigned_to !== undefined) { fields.push('assigned_to = ?'); values.push(body.assigned_to); }
   if (body.helper_id !== undefined) { fields.push('helper_id = ?'); values.push(body.helper_id); }
@@ -27,6 +32,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   values.push(Number(id));
   await db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+  await logAudit(
+    db,
+    'task_updated',
+    'task',
+    Number(id),
+    session?.userId || null,
+    `Görev güncellendi. Alanlar: ${fields.map((field) => field.split('=')[0].trim()).join(', ')}`
+  );
 
   // Create notification if status changed to 'sos'
   if (body.status === 'sos' && body.sos_from && body.sos_to) {
@@ -52,6 +66,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
   const { id } = await params;
+  const session = await getSession();
   await db.prepare('DELETE FROM tasks WHERE id = ?').run(Number(id));
+  await logAudit(db, 'task_deleted', 'task', Number(id), session?.userId || null, `Görev silindi: ${id}`);
   return NextResponse.json({ success: true });
 }

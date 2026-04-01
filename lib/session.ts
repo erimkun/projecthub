@@ -10,6 +10,7 @@ export interface SessionPayload {
   userId: number;
   username: string;
   memberId: number | null;
+  isSuperadmin: boolean;
 }
 
 export async function createSession(payload: SessionPayload): Promise<string> {

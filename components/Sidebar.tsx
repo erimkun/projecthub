@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, Users, FileText, Upload, Plus, X
+  LayoutDashboard, Users, FileText, Upload, Plus, X, CalendarDays, ShieldCheck
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import AddMemberModal from './AddMemberModal';
@@ -10,13 +10,14 @@ import AddProjectModal from './AddProjectModal';
 import ImportExport from './ImportExport';
 import ProjectDetailView from './ProjectDetailView';
 
-type SidebarSection = 'dashboard' | 'team' | 'notes' | 'import';
+type SidebarSection = 'dashboard' | 'team' | 'meeting' | 'notes' | 'admin' | 'import';
 
 export default function Sidebar() {
   const [activeSection, setActiveSection] = useState<SidebarSection>('dashboard');
   const [showAddMember, setShowAddMember] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const { projects, members, currentMemberId, setCurrentMemberId, view, setView, isSidebarOpen, setSidebarOpen } = useAppStore();
 
@@ -31,6 +32,13 @@ export default function Sidebar() {
     };
   }, [isSidebarOpen]);
 
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => setIsSuperadmin(Boolean(data?.user?.isSuperadmin)))
+      .catch(() => setIsSuperadmin(false));
+  }, []);
+
   const handleNavClick = (action: () => void) => {
     action();
     setSidebarOpen(false);
@@ -39,11 +47,13 @@ export default function Sidebar() {
   const navItems = [
     { id: 'dashboard' as SidebarSection, label: 'Dashboard', icon: <LayoutDashboard size={15} />, action: () => { setView('personal'); setActiveSection('dashboard'); setSelectedProjectId(null); } },
     { id: 'team' as SidebarSection, label: 'Ekip Radarı', icon: <Users size={15} />, action: () => { setView('team'); setActiveSection('team'); setSelectedProjectId(null); } },
+    { id: 'meeting' as SidebarSection, label: 'Haftalık Toplantı', icon: <CalendarDays size={15} />, action: () => { setView('meeting'); setActiveSection('meeting'); setSelectedProjectId(null); } },
     { id: 'notes' as SidebarSection, label: 'Notlar', icon: <FileText size={15} />, action: () => { setActiveSection('notes'); setView('notes'); setSelectedProjectId(null); } },
+    ...(isSuperadmin ? [{ id: 'admin' as SidebarSection, label: 'Superadmin', icon: <ShieldCheck size={15} />, action: () => { setView('admin'); setActiveSection('admin'); setSelectedProjectId(null); } }] : []),
     { id: 'import' as SidebarSection, label: 'İçe/Dışa Aktar', icon: <Upload size={15} />, action: () => setShowImport(true) },
   ];
 
-  const actualActive = view === 'team' ? 'team' : activeSection;
+  const actualActive = view === 'team' || view === 'meeting' || view === 'notes' || view === 'admin' ? view : activeSection;
 
   return (
     <>

@@ -1,26 +1,35 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Check, AlertTriangle, Heart, Trash2, Copy, Calendar, MoreHorizontal } from 'lucide-react';
+import { Check, AlertTriangle, Heart, Trash2, Copy, Calendar, MoreHorizontal, Plus } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { getWeekNumber } from '@/lib/parser';
 import type { Task } from '@/lib/types';
 
 interface TaskCardProps {
   task: Task;
+  depth?: number;
+  ancestorIds?: number[];
 }
 
-export default function TaskCard({ task }: TaskCardProps) {
+export default function TaskCard({ task, depth = 0, ancestorIds = [] }: TaskCardProps) {
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [showSubtaskInput, setShowSubtaskInput] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
   const cardRef = useRef<HTMLDivElement>(null);
-  const { updateTask, deleteTask, createTask, currentMemberId, members, selectedWeek, selectedYear } = useAppStore();
+  const { tasks, updateTask, deleteTask, createTask, currentMemberId, members, selectedWeek, selectedYear } = useAppStore();
 
   const isDone = task.status === 'done';
   const isSOS = task.status === 'sos';
   const isHelping = task.status === 'helping';
+  const isBlocked = task.status === 'blocked';
 
   const closeCtx = () => setCtx(null);
   const isCurrentWeekTask = task.week_number === selectedWeek && task.year === selectedYear;
+  const childTasks = tasks
+    .filter((candidate) => candidate.parent_task_id === task.id && !ancestorIds.includes(candidate.id))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -71,9 +80,13 @@ export default function TaskCard({ task }: TaskCardProps) {
   };
 
   const handleMoveNextWeek = async () => {
-    let nextWeek = selectedWeek + 1;
-    let nextYear = selectedYear;
-    if (nextWeek > 52) { nextWeek = 1; nextYear = selectedYear + 1; }
+    let nextWeek = task.week_number + 1;
+    let nextYear = task.year;
+    const weeksInYear = (year: number) => getWeekNumber(new Date(Date.UTC(year, 11, 28))).week;
+    if (nextWeek > weeksInYear(nextYear)) {
+      nextWeek = 1;
+      nextYear += 1;
+    }
     await updateTask(task.id, {
       week_number: nextWeek,
       year: nextYear,
@@ -82,6 +95,39 @@ export default function TaskCard({ task }: TaskCardProps) {
       is_rollover: 0,
       pulled_into_current_week: 0,
     });
+    closeCtx();
+  };
+
+  const handleToggleBlocked = async () => {
+    if (isBlocked) {
+      await updateTask(task.id, { status: 'pending', blocked_reason: null });
+      closeCtx();
+      return;
+    }
+
+    const reason = window.prompt('Blokaj sebebi nedir?', task.blocked_reason || '');
+    if (reason === null) return;
+    await updateTask(task.id, { status: 'blocked', blocked_reason: reason.trim() || 'Belirtilmedi' });
+    closeCtx();
+  };
+
+  const handleCreateSubtask = async () => {
+    const title = subtaskTitle.trim();
+    if (!title) return;
+
+    await createTask({
+      title,
+      body: '',
+      status: 'pending',
+      parent_task_id: task.id,
+      project_id: task.project_id,
+      assigned_to: task.assigned_to,
+      week_number: task.week_number,
+      year: task.year,
+      tags: task.tags,
+    });
+    setSubtaskTitle('');
+    setShowSubtaskInput(false);
     closeCtx();
   };
 
@@ -114,8 +160,9 @@ export default function TaskCard({ task }: TaskCardProps) {
         className={`task-card status-${task.status}${task.is_rollover ? ' is-rollover' : ''} ${isCompleting ? ' complete-animation' : ''}`}
         id={`task-${task.id}`}
         onContextMenu={handleContextMenu}
+        style={depth > 0 ? { marginLeft: Math.min(depth, 5) * 18 } : undefined}
       >
-        <div className="task-week-chip">H{task.week_number} · {task.year}</div>
+        {depth === 0 && <div className="task-week-chip">H{task.week_number} · {task.year}</div>}
 
         {/* Quick Actions Hover Overlay */}
         <div className="quick-actions">
@@ -158,7 +205,7 @@ export default function TaskCard({ task }: TaskCardProps) {
             <Trash2 size={14} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleContextMenu(e as any); }}
+            onClick={(e) => { e.stopPropagation(); handleContextMenu(e); }}
             title="Daha fazla"
           >
             <MoreHorizontal size={14} />
@@ -194,8 +241,12 @@ export default function TaskCard({ task }: TaskCardProps) {
               <span className="rollover-badge pulled">Bu Haftaya Alındı</span>
             )}
             {isSOS && <span className="status-badge status-sos">SOS</span>}
+            {isBlocked && <span className="status-badge status-blocked">Bloke</span>}
             {isHelping && task.helper_name && (
               <span className="status-badge status-helping">🤝 {task.helper_name}</span>
+            )}
+            {isBlocked && task.blocked_reason && (
+              <span style={{ fontSize: 11, color: 'var(--accent-sos)' }}>Neden: {task.blocked_reason}</span>
             )}
           </div>
         </div>
@@ -276,6 +327,25 @@ export default function TaskCard({ task }: TaskCardProps) {
               <Calendar size={13} /> Bir Sonraki Haftaya Taşı
             </button>
 
+            <button
+              className="btn"
+              style={{ width: '100%', justifyContent: 'flex-start', padding: '9px 14px', borderRadius: 0, gap: 10, fontSize: 13, color: isBlocked ? 'var(--accent-help)' : 'var(--accent-sos)' }}
+              onClick={handleToggleBlocked}
+            >
+              <AlertTriangle size={13} /> {isBlocked ? 'Blokeyi Kaldır' : 'Bloke Olarak İşaretle'}
+            </button>
+
+            <button
+              className="btn"
+              style={{ width: '100%', justifyContent: 'flex-start', padding: '9px 14px', borderRadius: 0, gap: 10, fontSize: 13, color: 'var(--text-2)' }}
+              onClick={() => {
+                setShowSubtaskInput(true);
+                closeCtx();
+              }}
+            >
+              <Plus size={13} /> Alt Görev Ekle
+            </button>
+
             {!isCurrentWeekTask && (
               <button
                 className="btn"
@@ -297,6 +367,57 @@ export default function TaskCard({ task }: TaskCardProps) {
             </button>
           </div>
         </>
+      )}
+
+      {showSubtaskInput && (
+        <div
+          style={{
+            marginTop: 8,
+            marginLeft: Math.min(depth + 1, 5) * 18,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <input
+            className="input"
+            autoFocus
+            value={subtaskTitle}
+            placeholder="Alt görev başlığı..."
+            onChange={(e) => setSubtaskTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreateSubtask();
+              if (e.key === 'Escape') {
+                setShowSubtaskInput(false);
+                setSubtaskTitle('');
+              }
+            }}
+            style={{ fontSize: 13, padding: '6px 10px' }}
+          />
+          <button className="btn btn-primary btn-sm" onClick={handleCreateSubtask}>Ekle</button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              setShowSubtaskInput(false);
+              setSubtaskTitle('');
+            }}
+          >
+            Vazgeç
+          </button>
+        </div>
+      )}
+
+      {childTasks.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {childTasks.map((childTask) => (
+            <TaskCard
+              key={childTask.id}
+              task={childTask}
+              depth={depth + 1}
+              ancestorIds={[...ancestorIds, task.id]}
+            />
+          ))}
+        </div>
       )}
     </>
   );

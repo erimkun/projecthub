@@ -21,35 +21,27 @@ export async function POST(req: NextRequest) {
       }
 
       const hash = await bcrypt.hash(password, 10);
-
-      // Create a member profile with the same name
-      const memberResult = await db.prepare(
-        "INSERT INTO members (name, status) VALUES (?, 'available')"
-      ).run(username.trim());
-
       const userResult = await db.prepare(
-        'INSERT INTO users (username, password_hash, member_id) VALUES (?, ?, ?)'
-      ).run(username.trim(), hash, memberResult.lastInsertRowid);
+        'INSERT INTO users (username, password_hash, member_id, approved, is_superadmin) VALUES (?, ?, NULL, 0, 0)'
+      ).run(username.trim(), hash);
 
-      const token = await createSession({
-        userId: Number(userResult.lastInsertRowid),
-        username: username.trim(),
-        memberId: Number(memberResult.lastInsertRowid),
-      });
+      await db.prepare(
+        'INSERT INTO audit_logs (action, entity_type, entity_id, actor_user_id, detail) VALUES (?, ?, ?, ?, ?)'
+      ).run('register_requested', 'user', Number(userResult.lastInsertRowid), null, `Yeni kayıt beklemede: ${username.trim()}`);
 
-      const res = NextResponse.json({ success: true, memberId: Number(memberResult.lastInsertRowid) });
-      res.cookies.set(COOKIE_NAME, token, {
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: '/',
-      });
-      return res;
+      return NextResponse.json({ success: true, pendingApproval: true });
     }
 
     // Login
     const user = await db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim()) as
-      | { id: number; username: string; password_hash: string; member_id: number | null }
+      | {
+        id: number;
+        username: string;
+        password_hash: string;
+        member_id: number | null;
+        approved: number;
+        is_superadmin: number;
+      }
       | undefined;
 
     if (!user) {
@@ -61,13 +53,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kullanıcı adı veya şifre hatalı' }, { status: 401 });
     }
 
+    if (!user.is_superadmin && user.approved !== 1) {
+      return NextResponse.json({ error: 'Hesabınız henüz onaylanmadı. Superadmin onayı bekleniyor.' }, { status: 403 });
+    }
+
     const token = await createSession({
       userId: user.id,
       username: user.username,
       memberId: user.member_id,
+      isSuperadmin: user.is_superadmin === 1,
     });
 
-    const res = NextResponse.json({ success: true, memberId: user.member_id });
+    const res = NextResponse.json({ success: true, memberId: user.member_id, isSuperadmin: user.is_superadmin === 1 });
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',

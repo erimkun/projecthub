@@ -25,7 +25,7 @@ export default function LoginPage() {
         body: JSON.stringify({ username: username.trim(), password, action: mode }),
       });
 
-      let data: { error?: string } = {};
+      let data: { error?: string; pendingApproval?: boolean } = {};
       const text = await res.text();
       if (text) {
         try {
@@ -37,6 +37,13 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setError(data.error || 'Bir hata oluştu');
+        return;
+      }
+
+      if (data.pendingApproval) {
+        setMode('login');
+        setPassword('');
+        setError('Kayıt alındı. Superadmin onayı sonrası giriş yapabilirsiniz.');
         return;
       }
 
@@ -180,7 +187,7 @@ export default function LoginPage() {
 
           {mode === 'register' && (
             <p style={{ marginTop: 14, fontSize: 12, color: 'var(--text-3)', textAlign: 'center' }}>
-              Kayıt olunca otomatik olarak ekip üyesi profili oluşturulur.
+              Kayıt sonrası hesap superadmin onayına düşer. Onaylandıktan sonra giriş yapılabilir.
             </p>
           )}
         </div>

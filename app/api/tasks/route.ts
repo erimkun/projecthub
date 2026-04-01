@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 import { getWeekNumber } from '@/lib/parser';
+import { getSession } from '@/lib/session';
+import { logAudit } from '@/lib/audit';
 
 export async function GET(req: NextRequest) {
   const db = await getDb();
@@ -39,21 +41,33 @@ export async function POST(req: NextRequest) {
   const db = await getDb();
   const body = await req.json();
   const { week, year } = getWeekNumber();
+  const session = await getSession();
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (title, body, status, project_id, assigned_to, week_number, year, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (title, body, status, blocked_reason, parent_task_id, project_id, assigned_to, week_number, year, tags)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = await stmt.run(
     body.title || 'Yeni Görev',
     body.body || '',
     body.status || 'pending',
+    body.blocked_reason || null,
+    body.parent_task_id ?? null,
     body.project_id || null,
     body.assigned_to || null,
     body.week_number || week,
     body.year || year,
     body.tags || ''
+  );
+
+  await logAudit(
+    db,
+    'task_created',
+    'task',
+    Number(result.lastInsertRowid),
+    session?.userId || null,
+    `Görev oluşturuldu: ${body.title || 'Yeni Görev'}`
   );
 
   const task = await db.prepare(`

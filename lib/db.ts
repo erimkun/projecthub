@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import bcrypt from 'bcryptjs';
 
 type DbRow = Record<string, unknown>;
 
@@ -133,6 +134,10 @@ async function initSchema() {
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      approved INTEGER NOT NULL DEFAULT 0,
+      is_superadmin INTEGER NOT NULL DEFAULT 0,
+      approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approved_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -141,6 +146,8 @@ async function initSchema() {
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending',
+      blocked_reason TEXT,
+      parent_task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
       project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
       assigned_to INTEGER REFERENCES members(id) ON DELETE SET NULL,
       helper_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
@@ -187,7 +194,79 @@ async function initSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS meetings (
+      id SERIAL PRIMARY KEY,
+      week_number INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      criticals TEXT NOT NULL DEFAULT '',
+      decisions TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      note_id INTEGER REFERENCES notes(id) ON DELETE SET NULL,
+      created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (week_number, year)
+    );
+
+    CREATE TABLE IF NOT EXISTS meeting_actions (
+      id SERIAL PRIMARY KEY,
+      meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      action_text TEXT NOT NULL,
+      assigned_to INTEGER REFERENCES members(id) ON DELETE SET NULL,
+      due_week_number INTEGER,
+      due_year INTEGER,
+      due_date TEXT,
+      task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
   `);
+
+  await pool.query(`
+    ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS parent_task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;
+
+    ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS approved INTEGER NOT NULL DEFAULT 0;
+
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_superadmin INTEGER NOT NULL DEFAULT 0;
+
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_meetings_week_year ON meetings(year, week_number);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_users_approval ON users(approved, is_superadmin);
+  `);
+
+  const superadmin = await pool.query('SELECT id FROM users WHERE username = $1', ['superadmin']);
+  if (superadmin.rows.length === 0) {
+    const hash = await bcrypt.hash('admin123', 10);
+    await pool.query(
+      `INSERT INTO users (username, password_hash, member_id, approved, is_superadmin, approved_at)
+       VALUES ($1, $2, NULL, 1, 1, NOW())`,
+      ['superadmin', hash]
+    );
+  }
 }
 
 async function getDb(): Promise<DbHandle> {

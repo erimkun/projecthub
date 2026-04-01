@@ -74,7 +74,7 @@ function QuickAddTask({ onClose }: { onClose: () => void }) {
 export default function PersonalDashboard() {
   const { tasks, currentMemberId, members, projects, notes, setActiveNoteId, setView, selectedWeek, selectedYear } = useAppStore();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'sos' | 'done' | 'rollover'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'blocked' | 'sos' | 'done' | 'rollover'>('all');
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
 
   const [notesWidth, setNotesWidth] = useState(480);
@@ -112,6 +112,7 @@ export default function PersonalDashboard() {
   );
 
   const pendingTasks = myTasks.filter((t) => t.status === 'pending' || t.status === 'helping');
+  const blockedTasks = myTasks.filter((t) => t.status === 'blocked');
   const sosTasks = myTasks.filter((t) => t.status === 'sos');
   const doneTasks = myTasks.filter((t) => t.status === 'done');
   const rolloverTasks = myTasks.filter((t) => t.is_rollover === 1);
@@ -120,6 +121,7 @@ export default function PersonalDashboard() {
   const filteredTasks = myTasks.filter(t => {
      if (activeProjectId && t.project_id !== activeProjectId) return false;
      if (activeFilter === 'pending' && t.status !== 'pending' && t.status !== 'helping') return false;
+      if (activeFilter === 'blocked' && t.status !== 'blocked') return false;
      if (activeFilter === 'sos' && t.status !== 'sos') return false;
      if (activeFilter === 'done' && t.status !== 'done') return false;
      if (activeFilter === 'rollover' && t.is_rollover !== 1) return false;
@@ -127,11 +129,24 @@ export default function PersonalDashboard() {
   });
 
   const displayPendingTasks = (activeFilter === 'all' || activeFilter === 'pending') ? filteredTasks.filter((t) => t.status === 'pending' || t.status === 'helping') : [];
+    const displayBlockedTasks = (activeFilter === 'all' || activeFilter === 'blocked') ? filteredTasks.filter((t) => t.status === 'blocked') : [];
   const displaySosTasks = (activeFilter === 'all' || activeFilter === 'sos') ? filteredTasks.filter((t) => t.status === 'sos') : [];
   const displayDoneTasks = (activeFilter === 'all' || activeFilter === 'done') ? filteredTasks.filter((t) => t.status === 'done') : [];
   const displayRolloverTasks = (activeFilter === 'all' || activeFilter === 'rollover') ? filteredTasks.filter((t) => t.is_rollover === 1) : [];
-  const statCards: { id: 'pending' | 'sos' | 'done' | 'rollover'; label: string; value: number; icon: React.ReactNode; color: string }[] = [
+
+  const getVisibleRootTasks = useCallback((list: typeof filteredTasks) => {
+    const idSet = new Set(list.map((task) => task.id));
+    return list.filter((task) => !task.parent_task_id || !idSet.has(task.parent_task_id));
+  }, []);
+
+  const visiblePendingTasks = getVisibleRootTasks(displayPendingTasks);
+  const visibleBlockedTasks = getVisibleRootTasks(displayBlockedTasks);
+  const visibleSosTasks = getVisibleRootTasks(displaySosTasks);
+  const visibleDoneTasks = getVisibleRootTasks(displayDoneTasks);
+  const visibleRolloverTasks = getVisibleRootTasks(displayRolloverTasks);
+  const statCards: { id: 'pending' | 'blocked' | 'sos' | 'done' | 'rollover'; label: string; value: number; icon: React.ReactNode; color: string }[] = [
     { id: 'pending', label: 'Bekleyen', value: pendingTasks.length, icon: <Clock size={16} />, color: 'var(--text-2)' },
+    { id: 'blocked', label: 'Bloke', value: blockedTasks.length, icon: <AlertCircle size={16} />, color: 'var(--accent-sos)' },
     { id: 'sos', label: 'SOS', value: sosTasks.length, icon: <AlertCircle size={16} />, color: 'var(--accent-sos)' },
     { id: 'done', label: 'Tamamlanan', value: doneTasks.length, icon: <CheckCircle size={16} />, color: 'var(--accent-help)' },
     { id: 'rollover', label: 'Taşınan', value: rolloverTasks.length, icon: <span style={{ fontSize: 14 }}>↩</span>, color: 'var(--accent-dim)' },
@@ -288,7 +303,7 @@ export default function PersonalDashboard() {
                 <span className="status-badge status-pending">{displayRolloverTasks.length} görev</span>
               </div>
               <div className="task-list">
-                {displayRolloverTasks.map((t, i) => (
+                {visibleRolloverTasks.map((t, i) => (
                   <div key={t.id} className="animate-rollover" style={{ animationDelay: `${i * 60}ms` }}>
                     <TaskCard task={t} />
                   </div>
@@ -303,7 +318,18 @@ export default function PersonalDashboard() {
                 <h2 style={{ fontSize: 13, color: 'var(--accent-sos)' }}>🆘 SOS — Yardım Bekleniyor</h2>
               </div>
               <div className="task-list">
-                {displaySosTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+                {visibleSosTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+              </div>
+            </section>
+          )}
+
+          {displayBlockedTasks.length > 0 && (
+            <section style={{ marginBottom: 24 }}>
+              <div className="section-header">
+                <h2 style={{ fontSize: 13, color: 'var(--accent-sos)' }}>⛔ Blokajdaki Görevler</h2>
+              </div>
+              <div className="task-list">
+                {visibleBlockedTasks.map((t) => <TaskCard key={t.id} task={t} />)}
               </div>
             </section>
           )}
@@ -343,7 +369,7 @@ export default function PersonalDashboard() {
               </div>
             ) : (
               <div className="task-list">
-                {displayPendingTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+                {visiblePendingTasks.map((t) => <TaskCard key={t.id} task={t} />)}
               </div>
             )}
           </section>
@@ -354,7 +380,7 @@ export default function PersonalDashboard() {
                 <h2 style={{ fontSize: 13, color: 'var(--text-3)' }}>✓ Tamamlananlar</h2>
               </div>
               <div className="task-list">
-                {displayDoneTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+                {visibleDoneTasks.map((t) => <TaskCard key={t.id} task={t} />)}
               </div>
             </section>
           )}

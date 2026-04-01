@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Users, NotebookPen, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, NotebookPen, Menu, CalendarDays } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 export default function MobileBottomNav() {
@@ -31,6 +31,18 @@ export default function MobileBottomNav() {
             <Users size={18} />
           </span>
           <span className="mobile-nav-item-label">Ekip</span>
+        </button>
+
+        <button
+          type="button"
+          className={`mobile-nav-item${view === 'meeting' ? ' active' : ''}`}
+          onClick={() => setView('meeting')}
+          aria-label="Haftalık Toplantı"
+        >
+          <span className="mobile-nav-item-icon">
+            <CalendarDays size={18} />
+          </span>
+          <span className="mobile-nav-item-label">Toplantı</span>
         </button>
 
         <button

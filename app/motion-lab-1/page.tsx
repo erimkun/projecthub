@@ -9,6 +9,8 @@ import Sidebar from '@/components/Sidebar';
 import PersonalDashboard from '@/components/PersonalDashboard';
 import NotesEditor from '@/components/NotesEditor';
 import TeamRadar from '@/components/TeamRadar';
+import MeetingBoard from '@/components/MeetingBoard';
+import AdminPanel from '@/components/AdminPanel';
 import SOSPanel from '@/components/SOSPanel';
 import RolloverBanner from '@/components/RolloverBanner';
 import MobileBottomNav from '@/components/MobileBottomNav';
@@ -1172,6 +1174,8 @@ function MotionLabOneContent() {
               {view === 'personal' && <PersonalDashboard />}
               {view === 'team' && <TeamRadar />}
               {view === 'notes' && <NotesEditor />}
+              {view === 'meeting' && <MeetingBoard />}
+              {view === 'admin' && <AdminPanel />}
             </main>
             <MobileBottomNav />
             {sosTasks.length > 0 && <SOSPanel sosTasks={sosTasks} />}

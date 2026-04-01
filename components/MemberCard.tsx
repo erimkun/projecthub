@@ -107,8 +107,14 @@ function MemberTaskPanel({ member, avatarIndex, onClose }: { member: Member; ava
   const memberTasks = tasks.filter(
     (t) => t.assigned_to === member.id && t.week_number === selectedWeek && t.year === selectedYear
   );
-  const pending = memberTasks.filter((t) => t.status === 'pending' || t.status === 'sos' || t.status === 'helping');
+  const pending = memberTasks.filter((t) => t.status === 'pending' || t.status === 'sos' || t.status === 'helping' || t.status === 'blocked');
   const done = memberTasks.filter((t) => t.status === 'done');
+  const getVisibleRootTasks = (list: typeof memberTasks) => {
+    const idSet = new Set(list.map((task) => task.id));
+    return list.filter((task) => !task.parent_task_id || !idSet.has(task.parent_task_id));
+  };
+  const visiblePending = getVisibleRootTasks(pending);
+  const visibleDone = getVisibleRootTasks(done);
 
   const handleDeleteMember = () => {
     setShowDeleteConfirm(true);
@@ -193,7 +199,7 @@ function MemberTaskPanel({ member, avatarIndex, onClose }: { member: Member; ava
               <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Aktif görev yok</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {pending.map((t) => <TaskCard key={t.id} task={t} />)}
+                {visiblePending.map((t) => <TaskCard key={t.id} task={t} />)}
               </div>
             )}
           </div>
@@ -206,7 +212,7 @@ function MemberTaskPanel({ member, avatarIndex, onClose }: { member: Member; ava
               <p style={{ fontSize: 13, color: 'var(--text-3)' }}>Henüz tamamlanan yok</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {done.map((t) => <TaskCard key={t.id} task={t} />)}
+                {visibleDone.map((t) => <TaskCard key={t.id} task={t} />)}
               </div>
             )}
           </div>

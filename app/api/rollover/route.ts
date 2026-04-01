@@ -70,15 +70,16 @@ export async function POST(req: NextRequest) {
     "SELECT * FROM tasks WHERE week_number = ? AND year = ?"
   ).all(sourceWeek, sourceYear) as Array<{
     id: number; title: string; body: string; status: string;
+    parent_task_id: number | null;
     project_id: number; assigned_to: number; helper_id: number; tags: string;
   }>;
 
   const rolloverInsertSql = `
     INSERT INTO tasks (
-      title, body, status, project_id, assigned_to, helper_id,
+      title, body, status, parent_task_id, project_id, assigned_to, helper_id,
       week_number, year, is_rollover, origin_task_id, source_week_number, source_year, pulled_into_current_week, tags
     )
-    VALUES (?, ?, 'pending', ?, ?, NULL, ?, ?, 1, ?, ?, ?, 0, ?)
+    VALUES (?, ?, 'pending', ?, ?, ?, NULL, ?, ?, 1, ?, ?, ?, 0, ?)
   `;
 
   const duplicateCheckSql = `
@@ -91,20 +92,56 @@ export async function POST(req: NextRequest) {
   const doRollover = db.transaction(async (txDb) => {
     const rolloverInsert = txDb.prepare(rolloverInsertSql);
     const duplicateCheck = txDb.prepare(duplicateCheckSql);
+    const taskMap = new Map(sourceTasks.map((task) => [task.id, task]));
+    const carriedMap = new Map<number, number>();
+
+    const getDepth = (taskId: number, seen = new Set<number>()): number => {
+      if (seen.has(taskId)) return 0;
+      const task = taskMap.get(taskId);
+      if (!task?.parent_task_id) return 0;
+      const parent = taskMap.get(task.parent_task_id);
+      if (!parent || parent.status === 'done') return 0;
+      seen.add(taskId);
+      return 1 + getDepth(parent.id, seen);
+    };
+
+    const pendingTasks = sourceTasks
+      .filter((task) => task.status !== 'done')
+      .sort((a, b) => getDepth(a.id) - getDepth(b.id));
 
     for (const task of sourceTasks) {
-      if (task.status !== 'done') {
-        const exists = await duplicateCheck.get(task.id, newWeek, newYear) as { id: number } | undefined;
-        if (exists) continue;
-
-        await rolloverInsert.run(
-          task.title, task.body, task.project_id, task.assigned_to,
-          newWeek, newYear, task.id, sourceWeek, sourceYear, task.tags
-        );
-        rolledOver++;
-      } else {
+      if (task.status === 'done') {
         archived++;
       }
+    }
+
+    for (const task of pendingTasks) {
+      const exists = await duplicateCheck.get(task.id, newWeek, newYear) as { id: number } | undefined;
+      if (exists) {
+        carriedMap.set(task.id, exists.id);
+        continue;
+      }
+
+      const nextParentId = task.parent_task_id ? (carriedMap.get(task.parent_task_id) ?? null) : null;
+
+      const insertResult = await rolloverInsert.run(
+        task.title,
+        task.body,
+        nextParentId,
+        task.project_id,
+        task.assigned_to,
+        newWeek,
+        newYear,
+        task.id,
+        sourceWeek,
+        sourceYear,
+        task.tags
+      );
+
+      if (insertResult.lastInsertRowid) {
+        carriedMap.set(task.id, insertResult.lastInsertRowid);
+      }
+      rolledOver++;
     }
 
     if (mode === 'auto') {

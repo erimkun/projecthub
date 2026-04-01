@@ -1,7 +1,7 @@
-export type TaskStatus = 'pending' | 'done' | 'sos' | 'helping';
+export type TaskStatus = 'pending' | 'done' | 'sos' | 'helping' | 'blocked';
 export type MemberStatus = 'available' | 'busy' | 'sos' | 'helping';
 export type NotificationType = 'sos' | 'mention' | 'help_offered';
-export type ViewMode = 'personal' | 'team' | 'notes';
+export type ViewMode = 'personal' | 'team' | 'notes' | 'meeting' | 'admin';
 
 export interface Project {
   id: number;
@@ -23,6 +23,8 @@ export interface Task {
   title: string;
   body: string;
   status: TaskStatus;
+  blocked_reason?: string | null;
+  parent_task_id?: number | null;
   project_id?: number;
   assigned_to?: number;
   helper_id?: number | null;
